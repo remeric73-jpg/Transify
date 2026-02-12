@@ -188,7 +188,18 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
           iconAnchor: [10, 10]
         });
         
-        L.marker([stop.lat, stop.lng], { icon }).addTo(markersLayerRef.current);
+        const marker = L.marker([stop.lat, stop.lng], { icon }).addTo(markersLayerRef.current);
+        
+        // Ajout du popup avec le nom de l'arrêt
+        marker.bindPopup(`
+          <div style="font-family: 'Inter', sans-serif; text-align: center;">
+            <div style="font-size: 10px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Station</div>
+            <div style="font-size: 14px; font-weight: 800; color: #1e293b; letter-spacing: -0.02em;">${stop.name}</div>
+          </div>
+        `, {
+          closeButton: false,
+          offset: [0, -10]
+        });
       });
 
       if (!isDriving && stops.length > 0) {
