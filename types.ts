@@ -19,6 +19,7 @@ export interface StopReport {
   actualTime: string;
   status: 'early' | 'on-time' | 'late';
   diffMinutes: number;
+  boardedCount: number;
 }
 
 export interface CourseReport {
