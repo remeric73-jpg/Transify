@@ -42,7 +42,7 @@ import { AppView, BusLine, Stop, CourseReport, StopReport } from './types';
 import { INITIAL_LINES } from './constants';
 import MapComponent from './components/MapComponent';
 
-const STORAGE_KEY = 'transify_bus_lines';
+const STORAGE_KEY = 'geoligne_bus_lines';
 
 const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371e3;
@@ -91,7 +91,7 @@ const App: React.FC = () => {
   }, []);
 
   const exportToXML = () => {
-    let xmlString = '<?xml version="1.0" encoding="UTF-8"?>\n<transify>\n';
+    let xmlString = '<?xml version="1.0" encoding="UTF-8"?>\n<geoligne>\n';
     lines.forEach(line => {
       xmlString += `  <line id="${line.id}">\n    <number>${line.number}</number>\n    <name>${line.name}</name>\n    <stops>\n`;
       line.stops.forEach(stop => {
@@ -99,12 +99,12 @@ const App: React.FC = () => {
       });
       xmlString += `    </stops>\n  </line>\n`;
     });
-    xmlString += '</transify>';
+    xmlString += '</geoligne>';
     const blob = new Blob([xmlString], { type: 'application/xml' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `transify_export_${new Date().toISOString().split('T')[0]}.xml`;
+    link.download = `geoligne_export_${new Date().toISOString().split('T')[0]}.xml`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -192,7 +192,7 @@ const App: React.FC = () => {
       <input type="file" accept=".xml" ref={fileInputRef} onChange={handleImportXML} className="hidden" />
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
         <div className="flex justify-between items-end px-1">
-          <div className="space-y-0.5"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lignes de la flotte</p><span className="text-[10px] text-blue-500 font-bold">{lines.length} Itinéraires actifs</span></div>
+          <div className="space-y-0.5"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">LISTE DES LIGNES</p><span className="text-[10px] text-blue-500 font-bold">{lines.length} Itinéraires actifs</span></div>
           <div className="flex gap-2">
             <button onClick={() => fileInputRef.current?.click()} className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 active:scale-90 transition-all flex items-center gap-1.5"><FileUp size={16} /><span className="text-[10px] font-black uppercase tracking-tight">Import</span></button>
             <button onClick={exportToXML} className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-emerald-600 active:scale-90 transition-all flex items-center gap-1.5"><FileDown size={16} /><span className="text-[10px] font-black uppercase tracking-tight">Export</span></button>
@@ -237,7 +237,7 @@ const App: React.FC = () => {
           </div>
           
           <div className="space-y-2">
-            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Rapport de Mission</h2>
+            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Rapport de ligne</h2>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Résumé de l'activité - Ligne {lastReport.lineNumber}</p>
           </div>
           
@@ -316,7 +316,7 @@ const App: React.FC = () => {
     <div className="h-[100dvh] w-full max-w-lg mx-auto overflow-hidden shadow-2xl relative bg-slate-50 text-slate-900 flex flex-col">
       {view !== AppView.SUMMARY && view !== AppView.DRIVING && (
         <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0 print:hidden">
-          <div className="flex items-center gap-3"><div className="bg-white/20 p-2 rounded-xl"><Bus size={22} /></div><h1 className="text-xl font-black uppercase italic tracking-tighter">Transify</h1></div>
+          <div className="flex items-center gap-3"><div className="bg-white/20 p-2 rounded-xl"><Bus size={22} /></div><h1 className="text-xl font-black uppercase italic tracking-tighter">GEOligne</h1></div>
           <div className="flex items-center gap-2 text-sm font-mono font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 shrink-0 tabular-nums"><Clock size={16} className="text-blue-200" /> {currentTime}</div>
         </div>
       )}
