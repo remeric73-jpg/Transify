@@ -325,7 +325,7 @@ const App: React.FC = () => {
             <AlertTriangle size={20} />
           </div>
           <p className="text-[11px] font-bold text-orange-900 leading-tight italic">
-            Cette application est une aide à la conduite.
+            Cette application est une aide à la conduite ; elle ne doit pas être manipulée lorsque le véhicule roule.
           </p>
         </div>
         
@@ -438,20 +438,32 @@ const App: React.FC = () => {
                 <div key={stop.id || i} className="bg-white p-4 rounded-3xl border-2 border-slate-100 flex flex-col gap-4 shadow-sm hover:border-blue-100 transition-colors">
                   <div className="flex items-center gap-4">
                     <div className="flex flex-col gap-2 shrink-0">
-                      {/* Boutons agrandis pour mobile avec active:scale pour retour tactile */}
-                      <button onClick={() => moveStop(i, 'up')} disabled={i === 0} className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-10 active:scale-90 transition-all shadow-sm">
-                        <ChevronUp size={20} />
+                      {/* Boutons agrandis à w-12/h-12 pour une cible tactile plus généreuse sur mobile (48px) */}
+                      <button 
+                        type="button"
+                        onClick={() => moveStop(i, 'up')} 
+                        disabled={i === 0} 
+                        className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-10 active:scale-90 transition-all shadow-sm"
+                        aria-label="Monter l'arrêt"
+                      >
+                        <ChevronUp size={24} />
                       </button>
-                      <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-xs font-black text-white shrink-0 shadow-lg shadow-blue-100">{i + 1}</div>
-                      <button onClick={() => moveStop(i, 'down')} disabled={i === (newLine.stops?.length || 0) - 1} className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-10 active:scale-90 transition-all shadow-sm">
-                        <ChevronDown size={20} />
+                      <div className="w-12 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-xs font-black text-white shrink-0 shadow-lg shadow-blue-100">{i + 1}</div>
+                      <button 
+                        type="button"
+                        onClick={() => moveStop(i, 'down')} 
+                        disabled={i === (newLine.stops?.length || 0) - 1} 
+                        className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-10 active:scale-90 transition-all shadow-sm"
+                        aria-label="Descendre l'arrêt"
+                      >
+                        <ChevronDown size={24} />
                       </button>
                     </div>
                     <div className="flex-1 space-y-3 min-w-0">
                       <input value={stop.name ?? ''} onChange={e => updateStop(i, 'name', e.target.value)} className="w-full font-bold text-slate-800 outline-none bg-slate-50/50 p-2 rounded-lg" placeholder="Nom de la station" />
                       <div className="flex items-center bg-slate-50 rounded-xl px-3 py-1.5 gap-2"><Clock size={14} className="text-slate-400" /><input type="time" value={stop.time ?? ''} onChange={e => updateStop(i, 'time', e.target.value)} className="bg-transparent text-sm font-bold text-slate-900 outline-none w-full" /></div>
                     </div>
-                    <button onClick={() => removeStop(i)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors active:scale-90"><Trash2 size={20} /></button>
+                    <button type="button" onClick={() => removeStop(i)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors active:scale-90"><Trash2 size={20} /></button>
                   </div>
                   <div className="flex gap-2 pt-2 border-t border-slate-50">
                     <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lat ?? ''} onChange={e => updateStop(i, 'lat', e.target.value)} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LAT" /></div>
