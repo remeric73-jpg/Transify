@@ -35,6 +35,7 @@ export interface CourseReport {
 export enum AppView {
   HOME = 'home',
   DETAIL = 'detail',
+  PREP = 'prep',
   DRIVING = 'driving',
   CREATE = 'create',
   SUMMARY = 'summary'

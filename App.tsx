@@ -36,7 +36,9 @@ import {
   AlertCircle,
   UserMinus,
   UserPlus,
-  FileText
+  FileText,
+  RotateCcw,
+  Navigation
 } from 'lucide-react';
 import { AppView, BusLine, Stop, CourseReport, StopReport } from './types';
 import { INITIAL_LINES } from './constants';
@@ -82,10 +84,12 @@ const App: React.FC = () => {
     }, 1000);
 
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
+      const watchId = navigator.geolocation.watchPosition(
         (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => console.error("Geolocation error:", err)
+        (err) => console.error("Geolocation error:", err),
+        { enableHighAccuracy: true }
       );
+      return () => { clearInterval(timer); navigator.geolocation.clearWatch(watchId); };
     }
     return () => clearInterval(timer);
   }, []);
@@ -142,13 +146,26 @@ const App: React.FC = () => {
       if (importedLines.length > 0) {
         if (window.confirm(`Importer ${importedLines.length} lignes ?`)) setLines(importedLines);
       }
-      // Reset input value to allow re-importing the same file
       e.target.value = "";
     };
     reader.readAsText(file);
   };
 
   const handleSelectLine = (line: BusLine) => { setSelectedLine(line); setView(AppView.DETAIL); };
+  
+  const startServiceLogic = () => {
+    if (!selectedLine || !userLocation) {
+       setView(AppView.DRIVING);
+       return;
+    }
+    const distToFirst = getDistance(userLocation.lat, userLocation.lng, selectedLine.stops[0].lat, selectedLine.stops[0].lng);
+    if (distToFirst > 50) {
+      setView(AppView.PREP);
+    } else {
+      setView(AppView.DRIVING);
+    }
+  };
+
   const handleCreateLine = () => { setNewLine({ number: '', name: '', stops: [] }); setView(AppView.CREATE); };
   const saveLine = () => {
     if (!newLine.number || !newLine.name || !newLine.stops?.length) return;
@@ -197,12 +214,7 @@ const App: React.FC = () => {
             <label className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 active:scale-90 transition-all flex items-center gap-1.5 cursor-pointer">
               <FileUp size={16} />
               <span className="text-[10px] font-black uppercase tracking-tight">Import</span>
-              <input 
-                type="file" 
-                accept=".xml,text/xml,application/xml" 
-                onChange={handleImportXML} 
-                className="hidden" 
-              />
+              <input type="file" accept=".xml,text/xml,application/xml" onChange={handleImportXML} className="hidden" />
             </label>
             <button onClick={exportToXML} className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-emerald-600 active:scale-90 transition-all flex items-center gap-1.5"><FileDown size={16} /><span className="text-[10px] font-black uppercase tracking-tight">Export</span></button>
           </div>
@@ -225,7 +237,7 @@ const App: React.FC = () => {
         <div className="relative"><MapComponent stops={selectedLine.stops} height="320px" /><button onClick={() => setView(AppView.HOME)} className="absolute top-4 left-4 bg-white p-3 rounded-full shadow-xl z-20 active:scale-90 transition-transform"><ChevronLeft size={24} className="text-slate-800" /></button></div>
         <div className="p-8 -mt-12 bg-white rounded-t-[48px] relative z-10 shadow-[0_-20px_50px_rgba(0,0,0,0.05)] min-h-[60%]"><div className="w-16 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div><div className="flex items-start justify-between mb-8"><div className="space-y-1"><div className="text-blue-600 font-black text-xs uppercase tracking-widest italic">Détails de la ligne</div><h2 className="text-3xl font-black text-slate-900 leading-tight uppercase italic tracking-tighter">{selectedLine.name}</h2></div><div className="bg-slate-900 text-white px-4 py-2 rounded-2xl font-black italic">#{selectedLine.number}</div></div><div className="space-y-8 relative before:absolute before:left-[11px] before:top-4 before:bottom-4 before:w-1 before:bg-slate-50">{selectedLine.stops.map((s, i) => (<div key={i} className="flex items-start space-x-6 relative"><div className={`w-6 h-6 rounded-full border-[5px] bg-white z-10 flex items-center justify-center shrink-0 ${i === 0 ? 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : i === selectedLine!.stops.length - 1 ? 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]' : 'border-slate-100'}`}></div><div className="flex-1 flex justify-between items-center group"><div className="flex flex-col overflow-hidden"><span className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">{s.name}</span><div className="flex items-center gap-2 mt-1"><Clock size={12} className="text-slate-400" /><span className="text-xs text-slate-500 font-medium tracking-tight">Passage à {s.time}</span></div></div><div className={`${i === 0 ? 'bg-emerald-50 text-emerald-600' : i === selectedLine!.stops.length - 1 ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'} text-[10px] font-black px-3 py-1.5 rounded-xl shrink-0 italic uppercase tracking-wider border border-current opacity-70`}>{i === 0 ? 'Départ' : i === selectedLine!.stops.length - 1 ? 'Terminus' : `Arrêt ${i+1}`}</div></div></div>))}</div></div>
       </div>
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-50 pt-16 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]"><button onClick={() => setView(AppView.DRIVING)} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-[32px] font-black flex items-center justify-center space-x-4 shadow-[0_25px_60px_-10px_rgba(37,99,235,0.6)] active:scale-[0.96] transition-all border-b-[10px] border-blue-900 uppercase italic tracking-tight group"><div className="bg-white/20 p-2 rounded-xl group-active-scale-90 transition-transform"><Play size={28} fill="currentColor" className="text-white" /></div><div className="flex flex-col items-start leading-none"><span className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-1">Prêt pour le départ ?</span><span className="text-2xl">Démarrer le service</span></div></button></div>
+      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-50 pt-16 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]"><button onClick={startServiceLogic} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-[32px] font-black flex items-center justify-center space-x-4 shadow-[0_25px_60px_-10px_rgba(37,99,235,0.6)] active:scale-[0.96] transition-all border-b-[10px] border-blue-900 uppercase italic tracking-tight group"><div className="bg-white/20 p-2 rounded-xl group-active:scale-90 transition-transform"><Play size={28} fill="currentColor" className="text-white" /></div><div className="flex flex-col items-start leading-none"><span className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-1">Prêt pour le départ ?</span><span className="text-2xl">Démarrer le service</span></div></button></div>
     </div>
   );
 
@@ -244,29 +256,24 @@ const App: React.FC = () => {
               <Home size={16} /> Fermer
             </button>
           </div>
-          
           <div className="space-y-2">
             <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Rapport de ligne</h2>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Résumé de l'activité - Ligne {lastReport.lineNumber}</p>
           </div>
-          
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1 print:border-slate-200">
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Durée Totale de Service</div>
               <div className="text-2xl font-black italic text-emerald-400 print:text-emerald-600">{lastReport.duration}</div>
             </div>
-            
             <div className="bg-blue-600/10 border border-blue-500/20 rounded-[32px] p-6 space-y-1 print:border-blue-200">
               <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Total Montées</div>
               <div className="text-3xl font-black italic text-blue-400 print:text-blue-600">{totalBoarded} <span className="text-sm not-italic opacity-60">pax</span></div>
             </div>
-            
             <div className="bg-rose-600/10 border border-rose-500/20 rounded-[32px] p-6 space-y-1 print:border-rose-200">
               <div className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em]">Total Descentes</div>
               <div className="text-3xl font-black italic text-rose-400 print:text-rose-600">{totalDropped} <span className="text-sm not-italic opacity-60">pax</span></div>
             </div>
           </div>
-
           <div className="bg-white/5 border border-white/10 rounded-[40px] overflow-hidden print:border-slate-200">
             <div className="bg-white/5 p-6 border-b border-white/10 flex items-center gap-3 print:bg-slate-50 print:border-slate-200">
               <CalendarDays size={18} className="text-blue-500" />
@@ -296,13 +303,9 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-        
         <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[env(safe-area-inset-bottom,24px)] print:hidden">
           <div className="flex gap-4 max-w-md mx-auto">
-            <button onClick={handleExportPDF} className="flex-1 bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight">
-              <FileText size={22} />
-              <span className="text-sm">Exporter en PDF</span>
-            </button>
+            <button onClick={handleExportPDF} className="flex-1 bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight"><FileText size={22} /><span className="text-sm">Exporter en PDF</span></button>
           </div>
         </div>
       </div>
@@ -323,7 +326,7 @@ const App: React.FC = () => {
 
   return (
     <div className="h-[100dvh] w-full max-w-lg mx-auto overflow-hidden shadow-2xl relative bg-slate-50 text-slate-900 flex flex-col">
-      {view !== AppView.SUMMARY && view !== AppView.DRIVING && (
+      {view !== AppView.SUMMARY && view !== AppView.DRIVING && view !== AppView.PREP && (
         <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0 print:hidden">
           <div className="flex items-center gap-3"><div className="bg-white/20 p-2 rounded-xl"><Bus size={22} /></div><h1 className="text-xl font-black uppercase italic tracking-tighter">GEOligne</h1></div>
           <div className="flex items-center gap-2 text-sm font-mono font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 shrink-0 tabular-nums"><Clock size={16} className="text-blue-200" /> {currentTime}</div>
@@ -333,8 +336,91 @@ const App: React.FC = () => {
         {view === AppView.HOME && renderHome()}
         {view === AppView.DETAIL && renderDetail()}
         {view === AppView.CREATE && renderCreate()}
+        {view === AppView.PREP && selectedLine && (<PrepView line={selectedLine} userLocation={userLocation} onCancel={() => setView(AppView.DETAIL)} onArrived={() => setView(AppView.DRIVING)} />)}
         {view === AppView.DRIVING && selectedLine && (<DrivingView line={selectedLine} onExit={() => setView(AppView.DETAIL)} onFinish={handleCourseFinished} onStop={() => { setSelectedLine(null); setView(AppView.HOME); }} />)}
         {view === AppView.SUMMARY && renderSummary()}
+      </div>
+    </div>
+  );
+};
+
+// --- Sub-component: PrepView (Approach phase) ---
+interface PrepViewProps {
+  line: BusLine;
+  userLocation: { lat: number; lng: number } | null;
+  onCancel: () => void;
+  onArrived: () => void;
+}
+
+const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArrived }) => {
+  const [currentPos, setCurrentPos] = useState(userLocation);
+  const firstStop = line.stops[0];
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setCurrentPos(newPos);
+        const dist = getDistance(newPos.lat, newPos.lng, firstStop.lat, firstStop.lng);
+        if (dist <= 50) onArrived();
+      },
+      (err) => console.error(err),
+      { enableHighAccuracy: true }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [firstStop, onArrived]);
+
+  const stats = useMemo(() => {
+    if (!currentPos) return null;
+    const dist = getDistance(currentPos.lat, currentPos.lng, firstStop.lat, firstStop.lng);
+    const [h, m] = firstStop.time.split(':').map(Number);
+    const scheduled = new Date();
+    scheduled.setHours(h, m, 0, 0);
+    const now = new Date();
+    const timeToStart = Math.floor((scheduled.getTime() - now.getTime()) / 60000);
+    // Vitesse estimée: 30km/h -> 500m/min
+    const estimatedTravelTime = Math.ceil(dist / 500);
+    const status = (timeToStart - estimatedTravelTime) < 0 ? 'late' : 'early';
+    const diff = Math.abs(timeToStart - estimatedTravelTime);
+
+    return { dist, timeToStart, status, diff };
+  }, [currentPos, firstStop]);
+
+  return (
+    <div className="fixed inset-0 bg-[#080b14] text-white z-[500] flex flex-col safe-top safe-bottom">
+      <div className="flex-1 p-6 space-y-4 flex flex-col overflow-hidden">
+        <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-3xl p-4">
+           <div className="flex items-center gap-3">
+             <div className="bg-blue-600 p-2 rounded-xl"><Navigation size={20} className="animate-pulse" /></div>
+             <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Approche</span>
+                <span className="text-lg font-black italic uppercase truncate w-32">{firstStop.name}</span>
+             </div>
+           </div>
+           <button onClick={onCancel} className="bg-rose-600/20 text-rose-500 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight active:scale-95 transition-all">Annuler</button>
+        </div>
+
+        <div className="flex-1 rounded-[48px] overflow-hidden border border-white/10 relative">
+          <MapComponent stops={[firstStop]} currentPos={currentPos} dark isDriving height="100%" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 shrink-0">
+          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-5 space-y-1">
+             <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Distance</span>
+             <div className="text-2xl font-black italic text-slate-100">{stats ? (stats.dist < 1000 ? `${Math.round(stats.dist)}m` : `${(stats.dist/1000).toFixed(1)}km`) : '--'}</div>
+          </div>
+          <div className={`border rounded-[32px] p-5 space-y-1 transition-colors ${stats?.status === 'late' ? 'bg-rose-950/20 border-rose-500/30' : 'bg-emerald-950/20 border-emerald-500/30'}`}>
+             <span className={`text-[8px] font-black uppercase tracking-widest ${stats?.status === 'late' ? 'text-rose-400' : 'text-emerald-400'}`}>{stats?.status === 'late' ? 'Risque Retard' : 'Prévoyance'}</span>
+             <div className={`text-2xl font-black italic ${stats?.status === 'late' ? 'text-rose-500' : 'text-emerald-500'}`}>{stats ? `${stats.diff} min` : '--'}</div>
+          </div>
+        </div>
+
+        <div className="bg-blue-600 border-b-8 border-blue-800 rounded-[32px] p-6 text-center shadow-2xl space-y-1">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Départ prévu à</span>
+          <div className="text-4xl font-black italic">{firstStop.time}</div>
+          <div className="text-xs font-bold bg-white/20 inline-block px-4 py-1 rounded-full mt-2">Dirigez-vous vers le point de départ</div>
+        </div>
       </div>
     </div>
   );
@@ -359,13 +445,11 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
   const [currentBoarding, setCurrentBoarding] = useState(0);
   const [currentDropped, setCurrentDropped] = useState(0);
   
-  // États pour l'automatisme
   const [capturedArrivalTime, setCapturedArrivalTime] = useState<string | null>(null);
   const wasAtStationRef = useRef(false);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
-    setCurrentPos({ lat: line.stops[0].lat, lng: line.stops[0].lng });
     if (!navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
       (pos) => setCurrentPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
@@ -373,7 +457,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
       { enableHighAccuracy: true }
     );
     return () => { navigator.geolocation.clearWatch(watchId); clearInterval(interval); };
-  }, [line]);
+  }, []);
 
   const currentStop = line.stops[nextStopIdx];
   const isLastStop = useMemo(() => nextStopIdx === line.stops.length - 1, [nextStopIdx, line.stops]);
@@ -403,7 +487,6 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
     return `${(distanceRemaining / 1000).toFixed(1)} km`;
   }, [distanceRemaining]);
 
-  // Logique de validation (manuelle ou auto)
   const handleNext = useCallback(() => {
     const timeToRecord = capturedArrivalTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newArrivals = [...actualArrivalTimes, timeToRecord];
@@ -450,15 +533,13 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
     }
   }, [nextStopIdx, line.stops, actualArrivalTimes, boardedCounts, droppedCounts, currentBoarding, currentDropped, capturedArrivalTime, startTime, onFinish]);
 
-  // AUTOMATISME : Détection Entrée / Sortie
   useEffect(() => {
     if (isAtStation) {
       wasAtStationRef.current = true;
       if (!capturedArrivalTime) {
         setCapturedArrivalTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       }
-    } else if (wasAtStationRef.current && distanceRemaining !== null && distanceRemaining > 100) {
-      // Sortie de zone après avoir été à l'arrêt -> Validation Automatique
+    } else if (wasAtStationRef.current && distanceRemaining !== null && distanceRemaining > 50) {
       handleNext();
     }
   }, [isAtStation, distanceRemaining, capturedArrivalTime, handleNext]);
@@ -467,22 +548,37 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
     <div className="fixed inset-0 bg-[#080b14] text-white flex flex-col font-sans overflow-hidden z-[500] safe-top safe-bottom">
       <div className="flex-1 flex flex-col p-6 gap-4 overflow-hidden relative">
         <div className="flex gap-3 h-[12%] shrink-0">
-          <div className={`flex-1 rounded-3xl p-4 flex flex-col justify-center border transition-colors duration-500 ${isEarly ? 'bg-amber-950/20 border-amber-500/30' : isLate ? 'bg-rose-950/20 border-rose-500/30' : 'bg-emerald-950/20 border-emerald-500/30'}`}>
+          <div className={`flex-1 rounded-3xl p-4 flex flex-col justify-center border transition-colors duration-500 ${isEarly ? 'bg-amber-950/20 border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.15)]' : isLate ? 'bg-rose-950/20 border-rose-500/30' : 'bg-emerald-950/20 border-emerald-500/30'}`}>
             <div className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5 ${isEarly ? 'text-amber-400' : isLate ? 'text-rose-400' : 'text-emerald-400'}`}>
               {isEarly ? <Hourglass size={12} /> : isLate ? <AlertCircle size={12} /> : <CheckCircle2 size={12} />}
               {isEarly ? 'Avance' : isLate ? 'Retard' : 'Ponctuel'}
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className={`text-2xl font-black italic ${isEarly ? 'text-amber-500' : isLate ? 'text-rose-500' : 'text-emerald-500'}`}>
-                {scheduleOffset === 0 ? 'Ok' : scheduleOffset > 0 ? `+${scheduleOffset}` : scheduleOffset}
-              </span>
-              <span className="text-[10px] opacity-50 font-bold uppercase tracking-widest">min</span>
+            <div className="flex items-baseline justify-between gap-1.5">
+              <div className="flex items-baseline gap-1.5">
+                <span className={`text-2xl font-black italic ${isEarly ? 'text-amber-500' : isLate ? 'text-rose-500' : 'text-emerald-500'}`}>
+                  {scheduleOffset === 0 ? 'Ok' : scheduleOffset > 0 ? `+${scheduleOffset}` : scheduleOffset}
+                </span>
+                <span className="text-[10px] opacity-50 font-bold uppercase tracking-widest">min</span>
+              </div>
+              {isAtStation && isEarly && (
+                <div className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg italic animate-pulse ${nextStopIdx === 0 ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-black'}`}>
+                   {nextStopIdx === 0 ? 'Top Départ' : 'Attendre'}
+                </div>
+              )}
             </div>
           </div>
-          <div className="flex-1 rounded-3xl p-4 flex flex-col justify-center bg-[#10162a] border border-white/5">
+          <div className="flex-[0.6] rounded-3xl p-4 flex flex-col justify-center bg-[#10162a] border border-white/5">
             <div className="text-[8px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5"><Flag size={12} /> Distance</div>
             <span className="text-xl font-black italic text-slate-100 tracking-tighter leading-none">{formattedDistance}</span>
           </div>
+          <button 
+            type="button"
+            onClick={(e) => { e.preventDefault(); if(window.confirm("Annuler le service en cours ?")) onExit(); }}
+            className="flex-[0.4] rounded-3xl p-4 flex flex-col items-center justify-center bg-white/5 border border-white/10 hover:bg-rose-600/20 hover:border-rose-600/40 transition-all active:scale-95 shrink-0 pointer-events-auto"
+          >
+            <RotateCcw size={18} className="text-slate-400" />
+            <span className="text-[7px] font-black uppercase tracking-tighter mt-1 text-slate-500">Annuler</span>
+          </button>
         </div>
 
         <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]"><MapComponent stops={line.stops} currentPos={currentPos} dark={true} isDriving={true} height="100%" /></div>
@@ -498,7 +594,6 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
           <div className="text-3xl font-black italic text-slate-200 tabular-nums">{currentStop?.time}</div>
         </div>
 
-        {/* Passenger Flux Module */}
         <div className="grid grid-cols-2 gap-3 shrink-0">
           <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2">
