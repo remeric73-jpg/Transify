@@ -302,7 +302,7 @@ const App: React.FC = () => {
           ))
         )}
       </div>
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-slate-100 flex justify-center z-[100] pb-10">
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-slate-100 flex justify-center z-[100] pb-[env(safe-area-inset-bottom,24px)]">
         <button 
           onClick={handleCreateLine} 
           className="bg-slate-900 text-white px-8 py-4 rounded-3xl shadow-2xl font-bold flex items-center space-x-3 active:scale-95 transition-transform w-full max-w-md justify-center group"
@@ -315,8 +315,8 @@ const App: React.FC = () => {
   );
 
   const renderDetail = () => selectedLine && (
-    <div className="flex flex-col h-full bg-white">
-      <div className="flex-1 overflow-y-auto">
+    <div className="flex flex-col h-full bg-white relative">
+      <div className="flex-1 overflow-y-auto pb-48">
         <div className="relative">
           <MapComponent stops={selectedLine.stops} height="320px" />
           <button 
@@ -363,13 +363,20 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
-      <div className="p-6 bg-slate-50 border-t border-slate-100 pb-10">
+      
+      {/* BOUTON DÉMARRER ULTRA ACCESSIBLE AVEC FIX MOBILE */}
+      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-50 pt-16 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]">
         <button 
           onClick={() => setView(AppView.DRIVING)} 
-          className="w-full bg-blue-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-4 shadow-2xl shadow-blue-200 active:scale-[0.97] transition-all border-b-8 border-blue-800 uppercase italic tracking-tight"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-[32px] font-black flex items-center justify-center space-x-4 shadow-[0_25px_60px_-10px_rgba(37,99,235,0.6)] active:scale-[0.96] transition-all border-b-[10px] border-blue-900 uppercase italic tracking-tight group"
         >
-          <Play size={24} fill="currentColor" />
-          <span className="text-xl">Démarrer le service</span>
+          <div className="bg-white/20 p-2 rounded-xl group-active:scale-90 transition-transform">
+            <Play size={28} fill="currentColor" className="text-white" />
+          </div>
+          <div className="flex flex-col items-start leading-none">
+            <span className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-1">Prêt pour le départ ?</span>
+            <span className="text-2xl">Démarrer le service</span>
+          </div>
         </button>
       </div>
     </div>
@@ -449,7 +456,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-10">
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[env(safe-area-inset-bottom,24px)]">
         <div className="flex gap-4 max-w-md mx-auto">
           <button 
             onClick={() => setView(AppView.HOME)}
@@ -593,7 +600,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/90 backdrop-blur-xl border-t border-slate-100 z-50 pb-10">
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/90 backdrop-blur-xl border-t border-slate-100 z-50 pb-[env(safe-area-inset-bottom,24px)]">
         <div className="flex gap-3 max-w-md mx-auto">
           <button 
             onClick={() => setView(AppView.HOME)}
@@ -627,9 +634,9 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="h-screen w-full max-w-lg mx-auto overflow-hidden shadow-2xl relative bg-slate-50 text-slate-900">
+    <div className="h-[100dvh] w-full max-w-lg mx-auto overflow-hidden shadow-2xl relative bg-slate-50 text-slate-900 flex flex-col">
       {view !== AppView.SUMMARY && (
-        <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top">
+        <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0">
           <div className="flex items-center gap-3">
             <div className="bg-white/20 p-2 rounded-xl">
                <Bus size={22} />
@@ -642,7 +649,7 @@ const App: React.FC = () => {
         </div>
       )}
       
-      <div className="flex-1 h-full overflow-hidden">
+      <div className="flex-1 overflow-hidden relative">
         {view === AppView.HOME && renderHome()}
         {view === AppView.DETAIL && renderDetail()}
         {view === AppView.CREATE && renderCreate()}
@@ -757,7 +764,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
   };
 
   return (
-    <div className="fixed inset-0 bg-[#080b14] text-white flex flex-col font-sans overflow-hidden z-[500]">
+    <div className="fixed inset-0 bg-[#080b14] text-white flex flex-col font-sans overflow-hidden z-[500] safe-top safe-bottom">
       <div className="flex-1 flex flex-col p-6 gap-6 overflow-hidden relative">
         <div className="flex gap-3 h-[12%] shrink-0">
           <div className={`flex-1 rounded-3xl p-4 flex flex-col justify-center relative overflow-hidden border ${isEarly ? 'bg-amber-950/20 border-amber-500/30' : scheduleOffset > 2 ? 'bg-rose-950/20 border-rose-500/30' : 'bg-emerald-950/20 border-emerald-500/30'}`}>
