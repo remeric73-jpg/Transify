@@ -278,7 +278,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Tuile de sécurité orange */}
         <div className="bg-orange-50 border-2 border-orange-100 rounded-[32px] p-5 flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-700">
           <div className="bg-orange-500 text-white p-2.5 rounded-2xl shrink-0 shadow-lg shadow-orange-200">
             <AlertTriangle size={20} />
@@ -322,7 +321,7 @@ const App: React.FC = () => {
         <MapComponent stops={selectedLine.stops} focusLocation={mapFocus} height="100%" />
         <button onClick={() => setView(AppView.HOME)} className="absolute top-4 left-4 bg-white p-3 rounded-full shadow-xl z-20 active:scale-90 transition-transform"><ChevronLeft size={24} className="text-slate-800" /></button>
       </div>
-      <div className="flex-1 flex flex-col bg-white rounded-none lg:rounded-none lg:mt-0 relative z-10 shadow-[0_-20px_50px_rgba(0,0,0,0.05)] lg:shadow-none min-h-0 overflow-visible">
+      <div className="flex-1 flex flex-col bg-white rounded-none lg:mt-0 relative z-10 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] lg:shadow-none min-h-0 overflow-visible">
         <div className="p-8 flex-1 overflow-y-auto pb-48 lg:pb-32 min-h-0">
           <div className="w-16 h-1.5 bg-slate-100 rounded-full mx-auto mb-10 lg:hidden"></div>
           <div className="flex items-start justify-between mb-8">
@@ -417,7 +416,7 @@ const App: React.FC = () => {
     const totalDropped = lastReport.stops.reduce((acc, s) => acc + (s.droppedCount || 0), 0);
     return (
       <div className="flex flex-col h-full bg-slate-950 text-white overflow-y-auto print:bg-white print:text-slate-900">
-        <div className="p-8 space-y-8 pb-32 max-w-4xl mx-auto w-full">
+        <div className="p-8 space-y-8 pb-48 max-w-4xl mx-auto w-full">
           <div className="flex justify-between items-center print:hidden">
             <div className="p-3 bg-white/5 rounded-2xl border border-white/10"><CheckCircle2 size={32} className="text-emerald-500" /></div>
             <button onClick={() => setView(AppView.HOME)} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-white/5 active:scale-95 transition-all"><Home size={16} /> Fermer</button>
@@ -426,18 +425,20 @@ const App: React.FC = () => {
             <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Rapport de ligne</h2>
             <div className="flex items-center gap-2"><p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Résumé - Ligne {lastReport.lineNumber}</p><span className="text-[8px] font-bold opacity-30 uppercase tracking-widest">BY MRICO73</span></div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-4">
             <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1 print:border-slate-200">
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Durée Totale</div>
               <div className="text-2xl font-black italic text-emerald-400 print:text-emerald-600">{lastReport.duration}</div>
             </div>
-            <div className="bg-blue-600/10 border border-blue-500/20 rounded-[32px] p-6 space-y-1 print:border-blue-200">
-              <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Montées</div>
-              <div className="text-3xl font-black italic text-blue-400 print:text-blue-600">{totalBoarded} <span className="text-sm not-italic opacity-60">pax</span></div>
-            </div>
-            <div className="bg-rose-600/10 border border-rose-500/20 rounded-[32px] p-6 space-y-1 print:border-rose-200">
-              <div className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em]">Descentes</div>
-              <div className="text-3xl font-black italic text-rose-400 print:text-rose-600">{totalDropped} <span className="text-sm not-italic opacity-60">pax</span></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-blue-600/10 border border-blue-500/20 rounded-[32px] p-6 space-y-1 print:border-blue-200">
+                <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Montées</div>
+                <div className="text-2xl sm:text-3xl font-black italic text-blue-400 print:text-blue-600">{totalBoarded} <span className="text-xs not-italic opacity-60">pax</span></div>
+              </div>
+              <div className="bg-rose-600/10 border border-rose-500/20 rounded-[32px] p-6 space-y-1 print:border-rose-200">
+                <div className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em]">Descentes</div>
+                <div className="text-2xl sm:text-3xl font-black italic text-rose-400 print:text-rose-600">{totalDropped} <span className="text-xs not-italic opacity-60">pax</span></div>
+              </div>
             </div>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-[40px] overflow-hidden print:border-slate-200">
@@ -461,7 +462,7 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[env(safe-area-inset-bottom,24px)] print:hidden flex justify-center"><button onClick={handleExportPDF} className="w-full max-w-md bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight"><FileText size={22} /><span className="text-sm">Exporter en PDF</span></button></div>
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[calc(env(safe-area-inset-bottom,24px)+40px)] print:hidden flex justify-center"><button onClick={handleExportPDF} className="w-full max-w-md bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight"><FileText size={22} /><span className="text-sm">Exporter en PDF</span></button></div>
       </div>
     );
   }
@@ -471,7 +472,7 @@ const App: React.FC = () => {
     const stopsAsStops: Stop[] = lastManualReport.stops.map((s, i) => ({ name: `Arrêt ${i + 1}`, time: s.time, lat: s.lat, lng: s.lng }));
     return (
       <div className="flex flex-col h-full bg-slate-950 text-white overflow-y-auto print:bg-white print:text-slate-900">
-        <div className="p-8 space-y-8 pb-32 max-w-4xl mx-auto w-full">
+        <div className="p-8 space-y-8 pb-48 max-w-4xl mx-auto w-full">
           <div className="flex justify-between items-center print:hidden">
             <div className="p-3 bg-white/5 rounded-2xl border border-white/10"><CheckCircle2 size={32} className="text-blue-500" /></div>
             <button onClick={() => setView(AppView.HOME)} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-white/5 active:scale-95 transition-all"><Home size={16} /> Fermer</button>
@@ -481,13 +482,21 @@ const App: React.FC = () => {
             <div className="flex items-center gap-2"><p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Traçage dynamique en direct</p><span className="text-[8px] font-bold opacity-30 uppercase tracking-widest">BY MRICO73</span></div>
           </div>
           <div className="relative h-64 sm:h-96 rounded-[40px] overflow-hidden border border-white/10 bg-white/5 shadow-2xl print:hidden"><MapComponent stops={stopsAsStops} dark={true} height="100%" /></div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-4">
             <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1 print:border-slate-200">
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Durée Totale</div>
               <div className="text-2xl font-black italic text-emerald-400 print:text-emerald-600">{lastManualReport.duration}</div>
             </div>
-            <div className="bg-blue-600/10 border border-blue-500/20 rounded-[32px] p-6 space-y-1 print:border-blue-200"><div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Montées</div><div className="text-3xl font-black italic text-blue-400 print:text-blue-600">{lastManualReport.totalBoarded} <span className="text-sm not-italic opacity-60">pax</span></div></div>
-            <div className="bg-rose-600/10 border border-rose-500/20 rounded-[32px] p-6 space-y-1 print:border-rose-200"><div className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em]">Descentes</div><div className="text-3xl font-black italic text-rose-400 print:text-rose-600">{lastManualReport.totalDropped} <span className="text-sm not-italic opacity-60">pax</span></div></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-blue-600/10 border border-blue-500/20 rounded-[32px] p-6 space-y-1 print:border-blue-200">
+                <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Montées</div>
+                <div className="text-2xl sm:text-3xl font-black italic text-blue-400 print:text-blue-600">{lastManualReport.totalBoarded} <span className="text-xs not-italic opacity-60">pax</span></div>
+              </div>
+              <div className="bg-rose-600/10 border border-rose-500/20 rounded-[32px] p-6 space-y-1 print:border-rose-200">
+                <div className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em]">Descentes</div>
+                <div className="text-2xl sm:text-3xl font-black italic text-rose-400 print:text-rose-600">{lastManualReport.totalDropped} <span className="text-xs not-italic opacity-60">pax</span></div>
+              </div>
+            </div>
           </div>
           <div className="bg-white/5 border border-white/10 rounded-[40px] overflow-hidden print:border-slate-200">
             <div className="bg-white/5 p-6 border-b border-white/10 flex items-center gap-3 print:bg-slate-50 print:border-slate-200"><MapPinCheck size={18} className="text-blue-500" /><span className="text-xs font-black uppercase tracking-widest italic">Points d'immobilisation ({lastManualReport.stops.length})</span></div>
@@ -501,7 +510,7 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[env(safe-area-inset-bottom,24px)] print:hidden flex justify-center">
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[calc(env(safe-area-inset-bottom,24px)+40px)] print:hidden flex justify-center">
           <div className="w-full max-w-2xl flex gap-4">
             <button onClick={handleConvertManualToLine} className="flex-1 bg-blue-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight italic"><Save size={22} /><span className="text-sm">Sauvegarder</span></button>
             <button onClick={handleExportPDF} className="flex-1 bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight italic"><FileText size={22} /><span className="text-sm">PDF</span></button>
