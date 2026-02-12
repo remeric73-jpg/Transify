@@ -1,0 +1,7 @@
+{
+  "name": "Transify: Gestionnaire de Flotte Intelligent",
+  "description": "Un outil complet de gestion de lignes de bus et de navigation pour conducteurs avec suivi en temps réel, optimisation d'itinéraire et suggestions d'horaires par IA.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
