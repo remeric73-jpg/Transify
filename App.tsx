@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   PlusCircle, 
   ChevronLeft, 
@@ -19,7 +19,9 @@ import {
   LogOut,
   CheckSquare,
   Crosshair,
-  ArrowLeft
+  ArrowLeft,
+  FileUp,
+  FileDown
 } from 'lucide-react';
 import { AppView, BusLine, Stop } from './types';
 import { INITIAL_LINES } from './constants';
@@ -27,26 +29,23 @@ import MapComponent from './components/MapComponent';
 
 const STORAGE_KEY = 'transify_bus_lines';
 
-// Helper pour calculer la distance en mètres entre deux points
 const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371e3;
   const φ1 = (lat1 * Math.PI) / 180;
   const φ2 = (lat2 * Math.PI) / 180;
   const Δφ = ((lat2 - lat1) * Math.PI) / 180;
   const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
   const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
     Math.cos(φ1) * Math.cos(φ2) *
     Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
   return R * c;
 };
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.HOME);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Initialisation à partir du LocalStorage ou des constantes par défaut
   const [lines, setLines] = useState<BusLine[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : INITIAL_LINES;
@@ -55,11 +54,8 @@ const App: React.FC = () => {
   const [selectedLine, setSelectedLine] = useState<BusLine | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-
-  // Form state for creating a line
   const [newLine, setNewLine] = useState<Partial<BusLine>>({ number: '', name: '', stops: [] });
 
-  // Sauvegarde automatique dès que la liste des lignes change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
   }, [lines]);
@@ -71,16 +67,92 @@ const App: React.FC = () => {
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        },
+        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         (err) => console.error("Geolocation error:", err)
       );
     }
-
     return () => clearInterval(timer);
   }, []);
 
+  // --- XML Logic ---
+  const exportToXML = () => {
+    let xmlString = '<?xml version="1.0" encoding="UTF-8"?>\n<transify>\n';
+    lines.forEach(line => {
+      xmlString += `  <line id="${line.id}">\n`;
+      xmlString += `    <number>${line.number}</number>\n`;
+      xmlString += `    <name>${line.name}</name>\n`;
+      xmlString += `    <stops>\n`;
+      line.stops.forEach(stop => {
+        xmlString += `      <stop>\n`;
+        xmlString += `        <name>${stop.name}</name>\n`;
+        xmlString += `        <time>${stop.time}</time>\n`;
+        xmlString += `        <lat>${stop.lat}</lat>\n`;
+        xmlString += `        <lng>${stop.lng}</lng>\n`;
+        xmlString += `      </stop>\n`;
+      });
+      xmlString += `    </stops>\n`;
+      xmlString += `  </line>\n`;
+    });
+    xmlString += '</transify>';
+
+    const blob = new Blob([xmlString], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `transify_export_${new Date().toISOString().split('T')[0]}.xml`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportXML = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const xmlText = event.target?.result as string;
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+      
+      const importedLines: BusLine[] = [];
+      const lineElements = xmlDoc.getElementsByTagName("line");
+
+      for (let i = 0; i < lineElements.length; i++) {
+        const lineEl = lineElements[i];
+        const id = lineEl.getAttribute("id") || Math.random().toString(36).substr(2, 9);
+        const number = lineEl.getElementsByTagName("number")[0]?.textContent || "??";
+        const name = lineEl.getElementsByTagName("name")[0]?.textContent || "Inconnu";
+        
+        const stops: Stop[] = [];
+        const stopElements = lineEl.getElementsByTagName("stop");
+        for (let j = 0; j < stopElements.length; j++) {
+          const stopEl = stopElements[j];
+          stops.push({
+            name: stopEl.getElementsByTagName("name")[0]?.textContent || "Station",
+            time: stopEl.getElementsByTagName("time")[0]?.textContent || "00:00",
+            lat: parseFloat(stopEl.getElementsByTagName("lat")[0]?.textContent || "0"),
+            lng: parseFloat(stopEl.getElementsByTagName("lng")[0]?.textContent || "0"),
+          });
+        }
+        
+        importedLines.push({ id, number, name, stops });
+      }
+
+      if (importedLines.length > 0) {
+        if (window.confirm(`Importer ${importedLines.length} lignes ? Cela remplacera votre liste actuelle.`)) {
+          setLines(importedLines);
+        }
+      } else {
+        alert("Fichier XML invalide ou vide.");
+      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+    reader.readAsText(file);
+  };
+
+  // --- UI Handlers ---
   const handleSelectLine = (line: BusLine) => {
     setSelectedLine(line);
     setView(AppView.DETAIL);
@@ -104,7 +176,7 @@ const App: React.FC = () => {
   };
 
   const deleteLine = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Empêche l'ouverture de la ligne lors du clic sur supprimer
+    e.stopPropagation();
     if (window.confirm("Voulez-vous vraiment supprimer cet itinéraire ?")) {
       setLines(prev => prev.filter(l => l.id !== id));
     }
@@ -132,11 +204,7 @@ const App: React.FC = () => {
       const stops = [...(prev.stops || [])];
       let val: string | number = value;
       if (field === 'lat' || field === 'lng') {
-        if (value === '' || value === '-' || value.endsWith('.')) {
-          val = parseFloat(value) || 0;
-        } else {
-          val = parseFloat(value);
-        }
+        val = parseFloat(value) || 0;
       }
       stops[idx] = { ...stops[idx], [field]: val };
       return { ...prev, stops };
@@ -144,26 +212,51 @@ const App: React.FC = () => {
   };
 
   const removeStop = (idx: number) => {
-    setNewLine(prev => ({
-      ...prev,
-      stops: prev.stops?.filter((_, i) => i !== idx)
-    }));
+    setNewLine(prev => ({ ...prev, stops: prev.stops?.filter((_, i) => i !== idx) }));
   };
 
   // Views
   const renderHome = () => (
     <div className="flex flex-col h-full bg-slate-50">
+      <input 
+        type="file" 
+        accept=".xml" 
+        ref={fileInputRef} 
+        onChange={handleImportXML} 
+        className="hidden" 
+      />
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
         <div className="flex justify-between items-end px-1">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lignes de la flotte</p>
-          <span className="text-[10px] text-blue-500 font-bold">{lines.length} Lignes au total</span>
+          <div className="space-y-0.5">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lignes de la flotte</p>
+            <span className="text-[10px] text-blue-500 font-bold">{lines.length} Itinéraires actifs</span>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 active:scale-90 transition-all flex items-center gap-1.5"
+              title="Importer XML"
+            >
+              <FileUp size={16} />
+              <span className="text-[10px] font-black uppercase tracking-tight">Import</span>
+            </button>
+            <button 
+              onClick={exportToXML}
+              className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-emerald-600 active:scale-90 transition-all flex items-center gap-1.5"
+              title="Exporter XML"
+            >
+              <FileDown size={16} />
+              <span className="text-[10px] font-black uppercase tracking-tight">Export</span>
+            </button>
+          </div>
         </div>
+
         {lines.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 flex flex-col items-center justify-center text-center space-y-4 border-2 border-dashed border-slate-200">
             <Bus size={48} className="text-slate-200" />
             <div className="space-y-1">
               <p className="font-bold text-slate-400 uppercase text-xs tracking-widest">Aucune ligne enregistrée</p>
-              <p className="text-[10px] text-slate-300">Commencez par créer votre premier itinéraire.</p>
+              <p className="text-[10px] text-slate-300">Commencez par créer votre premier itinéraire ou importez un fichier XML.</p>
             </div>
           </div>
         ) : (
@@ -466,9 +559,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
 
     if (!navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setCurrentPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      },
+      (pos) => setCurrentPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       (err) => console.error(err),
       { enableHighAccuracy: true }
     );
@@ -495,9 +586,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
     return getDistance(currentPos.lat, currentPos.lng, currentStop.lat, currentStop.lng);
   }, [currentPos, currentStop]);
 
-  const isAtStation = useMemo(() => {
-    return distanceRemaining !== null && distanceRemaining <= 50;
-  }, [distanceRemaining]);
+  const isAtStation = useMemo(() => distanceRemaining !== null && distanceRemaining <= 50, [distanceRemaining]);
 
   const formattedDistance = useMemo(() => {
     if (distanceRemaining === null) return '--';
@@ -529,7 +618,6 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
               {scheduleOffset !== 0 && <span className={`text-[8px] font-bold uppercase ${scheduleOffset > 2 ? 'text-rose-500/70' : scheduleOffset < -2 ? 'text-blue-500/70' : 'text-emerald-500/70'}`}>min</span>}
             </div>
           </div>
-
           <div className="flex-1 rounded-3xl p-4 flex flex-col justify-center bg-[#10162a] border border-white/5">
             <div className="text-[8px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5">
               <Flag size={12} /> Distance
@@ -539,41 +627,21 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
               <span className="text-[7px] text-slate-500 uppercase font-black mt-1">Jusqu'à l'arrêt</span>
             </div>
           </div>
-          
           <div className="flex-1 bg-[#10162a] border border-white/5 rounded-3xl p-4 flex flex-col justify-center items-end text-right">
             <div className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Système GPS</div>
-            <div className="text-xs font-black italic uppercase text-blue-400 animate-pulse">
-              Signal Actif
-            </div>
-            <div className="text-[7px] text-slate-700 mt-1 font-bold tracking-tighter truncate w-full">
-              GPS: {currentPos?.lat.toFixed(3)},{currentPos?.lng.toFixed(3)}
-            </div>
+            <div className="text-xs font-black italic uppercase text-blue-400 animate-pulse">Signal Actif</div>
+            <div className="text-[7px] text-slate-700 mt-1 font-bold tracking-tighter truncate w-full">GPS: {currentPos?.lat.toFixed(3)},{currentPos?.lng.toFixed(3)}</div>
           </div>
         </div>
 
         <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] bg-[#0a0d18]">
-          <MapComponent 
-            stops={line.stops} 
-            currentPos={currentPos} 
-            dark={true} 
-            isDriving={true} 
-            height="100%"
-          />
-          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-[#080b14]/40 via-transparent to-[#080b14]/20"></div>
-          
+          <MapComponent stops={line.stops} currentPos={currentPos} dark={true} isDriving={true} height="100%" />
           <div className="absolute top-6 left-6 right-6 flex justify-between pointer-events-none">
-            <button 
-              onClick={onStop}
-              className="p-4 bg-[#1a1f33] border border-white/10 backdrop-blur-xl rounded-2xl pointer-events-auto active:scale-95 transition-all text-rose-500 flex items-center gap-2 shadow-xl group"
-            >
+            <button onClick={onStop} className="p-4 bg-[#1a1f33] border border-white/10 backdrop-blur-xl rounded-2xl pointer-events-auto active:scale-95 transition-all text-rose-500 flex items-center gap-2 shadow-xl group">
               <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
               <span className="font-black italic uppercase text-[10px] tracking-widest">Arrêter le service</span>
             </button>
-
-            <button 
-              onClick={onExit}
-              className="p-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl pointer-events-auto active:scale-90 transition-all text-white/50"
-            >
+            <button onClick={onExit} className="p-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl pointer-events-auto active:scale-90 transition-all text-white/50">
               <X size={24} />
             </button>
           </div>
@@ -590,45 +658,19 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
                  {isAtStation ? <MapPinCheck size={12} /> : <Navigation2 size={12} fill="currentColor" />}
                  {isAtStation ? (isLastStop ? 'TERMINUS ATTEINT' : 'ARRÊT DÉTECTÉ') : 'PROCHAINE STATION'}
                </div>
-               <h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none truncate pr-4">
-                 {currentStop?.name || "FIN DE SERVICE"}
-               </h2>
+               <h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none truncate pr-4">{currentStop?.name || "FIN DE SERVICE"}</h2>
              </div>
           </div>
-          <div className={`text-4xl font-black italic tabular-nums shrink-0 ml-4 transition-colors ${isAtStation ? 'text-emerald-400' : 'text-slate-200'}`}>
-            {currentStop?.time}
-          </div>
+          <div className={`text-4xl font-black italic tabular-nums shrink-0 ml-4 transition-colors ${isAtStation ? 'text-emerald-400' : 'text-slate-200'}`}>{currentStop?.time}</div>
         </div>
 
         <div className="flex gap-6 h-[18%] shrink-0 pb-4">
-          <button 
-            onClick={() => setNextStopIdx(p => Math.max(0, p - 1))}
-            className="flex-1 bg-white/5 rounded-[40px] flex items-center justify-center text-slate-600 border border-white/5 active:bg-white/10 transition-colors"
-          >
+          <button onClick={() => setNextStopIdx(p => Math.max(0, p - 1))} className="flex-1 bg-white/5 rounded-[40px] flex items-center justify-center text-slate-600 border border-white/5 active:bg-white/10 transition-colors">
             <ChevronLeft size={48} />
           </button>
-
-          <button 
-            onClick={handleNext}
-            className={`flex-[3] border-b-[12px] rounded-[40px] flex flex-col items-center justify-center space-y-1 transition-all shadow-2xl ${
-              isLastStop 
-                ? 'bg-rose-600 border-rose-800 shadow-[0_20px_60px_rgba(244,63,94,0.4)]' 
-                : (isAtStation ? 'bg-emerald-600 border-emerald-800 animate-bounce shadow-[0_20px_60px_rgba(16,185,129,0.4)]' : 'bg-blue-600 border-blue-800 shadow-[0_20px_60px_rgba(37,99,235,0.4)]')
-            } active:translate-y-2 active:border-b-4`}
-          >
-            <div className="text-xs font-black uppercase tracking-[0.4em] opacity-60">
-              {isLastStop ? 'Mission accomplie' : (isAtStation ? 'Départ effectué ?' : "Valider l'arrivée")}
-            </div>
-            <div className="text-2xl font-black italic uppercase tracking-tight flex items-center gap-3">
-              {isLastStop ? (
-                <>
-                  <CheckSquare size={24} />
-                  <span>Fin de course</span>
-                </>
-              ) : (
-                'Station suivante'
-              )}
-            </div>
+          <button onClick={handleNext} className={`flex-[3] border-b-[12px] rounded-[40px] flex flex-col items-center justify-center space-y-1 transition-all shadow-2xl ${isLastStop ? 'bg-rose-600 border-rose-800 shadow-[0_20px_60px_rgba(244,63,94,0.4)]' : (isAtStation ? 'bg-emerald-600 border-emerald-800 animate-bounce shadow-[0_20px_60px_rgba(16,185,129,0.4)]' : 'bg-blue-600 border-blue-800 shadow-[0_20px_60px_rgba(37,99,235,0.4)]')} active:translate-y-2 active:border-b-4`}>
+            <div className="text-xs font-black uppercase tracking-[0.4em] opacity-60">{isLastStop ? 'Mission accomplie' : (isAtStation ? 'Départ effectué ?' : "Valider l'arrivée")}</div>
+            <div className="text-2xl font-black italic uppercase tracking-tight flex items-center gap-3">{isLastStop ? <><CheckSquare size={24} /><span>Fin de course</span></> : 'Station suivante'}</div>
           </button>
         </div>
       </div>
