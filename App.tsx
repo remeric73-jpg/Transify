@@ -77,6 +77,7 @@ const App: React.FC = () => {
   const [newLine, setNewLine] = useState<Partial<BusLine>>({ number: '', name: '', stops: [] });
   const [lastReport, setLastReport] = useState<CourseReport | null>(null);
   const [lastManualReport, setLastManualReport] = useState<ManualReport | null>(null);
+  const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number } | null>(null);
 
   // Gestion du Wake Lock avec protection contre les politiques de sécurité
   useEffect(() => {
@@ -125,7 +126,7 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleSelectLine = (line: BusLine) => { setSelectedLine(line); setView(AppView.DETAIL); };
+  const handleSelectLine = (line: BusLine) => { setSelectedLine(line); setMapFocus(null); setView(AppView.DETAIL); };
   const handleCreateLine = () => { setNewLine({ number: '', name: '', stops: [] }); setView(AppView.CREATE); };
   const handleEditLine = (e: React.MouseEvent, line: BusLine) => {
     e.stopPropagation();
@@ -318,10 +319,10 @@ const App: React.FC = () => {
   const renderDetail = () => selectedLine && (
     <div className="flex flex-col lg:flex-row h-full bg-white relative">
       <div className="h-[40vh] lg:h-full lg:w-1/2 relative shrink-0">
-        <MapComponent stops={selectedLine.stops} height="100%" />
+        <MapComponent stops={selectedLine.stops} focusLocation={mapFocus} height="100%" />
         <button onClick={() => setView(AppView.HOME)} className="absolute top-4 left-4 bg-white p-3 rounded-full shadow-xl z-20 active:scale-90 transition-transform"><ChevronLeft size={24} className="text-slate-800" /></button>
       </div>
-      <div className="flex-1 flex flex-col bg-white rounded-t-[48px] lg:rounded-none -mt-12 lg:mt-0 relative z-10 shadow-[0_-20px_50px_rgba(0,0,0,0.05)] lg:shadow-none min-h-0 overflow-visible">
+      <div className="flex-1 flex flex-col bg-white rounded-none lg:rounded-none lg:mt-0 relative z-10 shadow-[0_-20px_50px_rgba(0,0,0,0.05)] lg:shadow-none min-h-0 overflow-visible">
         <div className="p-8 flex-1 overflow-y-auto pb-48 lg:pb-32 min-h-0">
           <div className="w-16 h-1.5 bg-slate-100 rounded-full mx-auto mb-10 lg:hidden"></div>
           <div className="flex items-start justify-between mb-8">
@@ -335,7 +336,7 @@ const App: React.FC = () => {
             {selectedLine.stops.map((s, i) => (
               <div key={i} className="flex items-start space-x-6 relative">
                 <div className={`w-6 h-6 rounded-full border-[5px] bg-white z-10 flex items-center justify-center shrink-0 ${i === 0 ? 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : i === selectedLine!.stops.length - 1 ? 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]' : 'border-slate-100'}`}></div>
-                <div className="flex-1 flex justify-between items-center group">
+                <div className="flex-1 flex justify-between items-center group cursor-pointer" onClick={() => setMapFocus({ lat: s.lat, lng: s.lng })}>
                   <div className="flex flex-col overflow-hidden">
                     <span className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">{s.name}</span>
                     <div className="flex items-center gap-2 mt-1"><Clock size={12} className="text-slate-400" /><span className="text-xs text-slate-500 font-medium tracking-tight">Passage à {s.time}</span></div>
@@ -460,7 +461,7 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[env(safe-area-inset-bottom,24px)] print:hidden flex justify-center"><button onClick={handleExportPDF} className="w-full max-w-md bg-emerald-600 text-white p-5 rounded-3xl font-black items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight hidden print:hidden"><FileText size={22} /><span className="text-sm">Exporter en PDF</span></button><button onClick={handleExportPDF} className="w-full max-w-md bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight"><FileText size={22} /><span className="text-sm">Exporter en PDF</span></button></div>
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[env(safe-area-inset-bottom,24px)] print:hidden flex justify-center"><button onClick={handleExportPDF} className="w-full max-w-md bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight"><FileText size={22} /><span className="text-sm">Exporter en PDF</span></button></div>
       </div>
     );
   }

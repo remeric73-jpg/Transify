@@ -6,6 +6,7 @@ import { Stop } from '../types';
 interface MapComponentProps {
   stops: Stop[];
   currentPos?: { lat: number; lng: number } | null;
+  focusLocation?: { lat: number; lng: number } | null;
   height?: string;
   onMapClick?: (lat: number, lng: number) => void;
   dark?: boolean;
@@ -18,6 +19,7 @@ const routeCache = new Map<string, any>();
 const MapComponent: React.FC<MapComponentProps> = memo(({ 
   stops, 
   currentPos, 
+  focusLocation,
   height = "200px", 
   onMapClick, 
   dark = false, 
@@ -118,6 +120,14 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     };
   }, [containerId, dark, isDriving]);
 
+  // Effet pour gérer le focusLocation (recentrage dynamique)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map && focusLocation) {
+      map.setView([focusLocation.lat, focusLocation.lng], 16, { animate: true });
+    }
+  }, [focusLocation]);
+
   useEffect(() => {
     const map = mapRef.current;
     const L = (window as any).L;
@@ -194,7 +204,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
         });
       });
 
-      if (!isDriving && stops.length > 0) {
+      if (!isDriving && stops.length > 0 && !focusLocation) {
         const bounds = L.latLngBounds(stops.map(s => [s.lat, s.lng]));
         map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });
       }
