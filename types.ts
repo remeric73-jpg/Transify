@@ -13,9 +13,27 @@ export interface BusLine {
   stops: Stop[];
 }
 
+export interface StopReport {
+  stopName: string;
+  scheduledTime: string;
+  actualTime: string;
+  status: 'early' | 'on-time' | 'late';
+  diffMinutes: number;
+}
+
+export interface CourseReport {
+  lineName: string;
+  lineNumber: string;
+  startTime: string;
+  endTime: string;
+  duration: string;
+  stops: StopReport[];
+}
+
 export enum AppView {
   HOME = 'home',
   DETAIL = 'detail',
   DRIVING = 'driving',
-  CREATE = 'create'
+  CREATE = 'create',
+  SUMMARY = 'summary'
 }

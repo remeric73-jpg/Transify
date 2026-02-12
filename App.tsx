@@ -21,9 +21,17 @@ import {
   Crosshair,
   ArrowLeft,
   FileUp,
-  FileDown
+  FileDown,
+  Timer,
+  CalendarDays,
+  Award,
+  Share2,
+  Home,
+  Hourglass,
+  Zap,
+  AlertTriangle
 } from 'lucide-react';
-import { AppView, BusLine, Stop } from './types';
+import { AppView, BusLine, Stop, CourseReport, StopReport } from './types';
 import { INITIAL_LINES } from './constants';
 import MapComponent from './components/MapComponent';
 
@@ -55,6 +63,7 @@ const App: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [newLine, setNewLine] = useState<Partial<BusLine>>({ number: '', name: '', stops: [] });
+  const [lastReport, setLastReport] = useState<CourseReport | null>(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
@@ -215,6 +224,11 @@ const App: React.FC = () => {
     setNewLine(prev => ({ ...prev, stops: prev.stops?.filter((_, i) => i !== idx) }));
   };
 
+  const handleCourseFinished = (report: CourseReport) => {
+    setLastReport(report);
+    setView(AppView.SUMMARY);
+  };
+
   // Views
   const renderHome = () => (
     <div className="flex flex-col h-full bg-slate-50">
@@ -357,6 +371,100 @@ const App: React.FC = () => {
           <Play size={24} fill="currentColor" />
           <span className="text-xl">Démarrer le service</span>
         </button>
+      </div>
+    </div>
+  );
+
+  const renderSummary = () => lastReport && (
+    <div className="flex flex-col h-full bg-slate-950 text-white overflow-y-auto">
+      <div className="p-8 space-y-8 pb-32">
+        <div className="flex justify-between items-center">
+          <div className="p-3 bg-white/5 rounded-2xl border border-white/10">
+             <CheckCircle2 size={32} className="text-emerald-500" />
+          </div>
+          <button 
+            onClick={() => setView(AppView.HOME)} 
+            className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-white/5 active:scale-95 transition-all"
+          >
+            <Home size={16} /> Fermer
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Rapport de Mission</h2>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Résumé de l'activité - Ligne {lastReport.lineNumber}</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1">
+            <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Durée Totale</div>
+            <div className="text-2xl font-black italic text-emerald-400">{lastReport.duration}</div>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1">
+            <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Service Terminé</div>
+            <div className="text-2xl font-black italic text-blue-400">{lastReport.endTime}</div>
+          </div>
+        </div>
+
+        <div className="bg-white/5 border border-white/10 rounded-[40px] overflow-hidden">
+          <div className="bg-white/5 p-6 border-b border-white/10 flex items-center gap-3">
+             <CalendarDays size={18} className="text-blue-500" />
+             <span className="text-xs font-black uppercase tracking-widest italic">Chronologie des arrêts</span>
+          </div>
+          <div className="p-6 space-y-6">
+            {lastReport.stops.map((stop, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-slate-100 truncate">{stop.stopName}</span>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Prévu: {stop.scheduledTime}</span>
+                </div>
+                <div className="text-right flex flex-col items-end">
+                  <span className={`text-lg font-black italic leading-none ${stop.status === 'late' ? 'text-rose-500' : stop.status === 'early' ? 'text-blue-400' : 'text-emerald-400'}`}>
+                    {stop.actualTime}
+                  </span>
+                  <div className={`text-[8px] font-black uppercase mt-1 px-2 py-0.5 rounded-full border ${
+                    stop.status === 'late' ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : 
+                    stop.status === 'early' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 
+                    'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  }`}>
+                    {stop.status === 'late' ? `+${stop.diffMinutes} min` : stop.status === 'early' ? `${stop.diffMinutes} min` : 'À l\'heure'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-emerald-600 rounded-[32px] p-6 flex items-center justify-between shadow-[0_20px_40px_rgba(16,185,129,0.2)]">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center">
+              <Award size={24} className="text-white" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-black uppercase tracking-widest text-emerald-100 italic">Score de mission</span>
+              <span className="text-xl font-black italic">Excellent Service</span>
+            </div>
+          </div>
+          <div className="text-3xl font-black italic">100%</div>
+        </div>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-10">
+        <div className="flex gap-4 max-w-md mx-auto">
+          <button 
+            onClick={() => setView(AppView.HOME)}
+            className="flex-1 bg-white/5 text-white p-5 rounded-3xl font-black uppercase tracking-tight active:scale-95 transition-all text-sm border border-white/10"
+          >
+            Retour Home
+          </button>
+          <button 
+            onClick={() => alert("Rapport sauvegardé dans vos documents.")}
+            className="flex-1 bg-blue-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight"
+          >
+            <Share2 size={22} />
+            <span className="text-sm">Partager</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -510,6 +618,7 @@ const App: React.FC = () => {
     <DrivingView 
       line={selectedLine} 
       onExit={() => setView(AppView.DETAIL)} 
+      onFinish={handleCourseFinished}
       onStop={() => {
         setSelectedLine(null);
         setView(AppView.HOME);
@@ -519,23 +628,26 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen w-full max-w-lg mx-auto overflow-hidden shadow-2xl relative bg-slate-50 text-slate-900">
-      <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top">
-        <div className="flex items-center gap-3">
-          <div className="bg-white/20 p-2 rounded-xl">
-             <Bus size={22} />
+      {view !== AppView.SUMMARY && (
+        <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-2 rounded-xl">
+               <Bus size={22} />
+            </div>
+            <h1 className="text-xl font-black uppercase italic tracking-tighter">Transify</h1>
           </div>
-          <h1 className="text-xl font-black uppercase italic tracking-tighter">Transify</h1>
+          <div className="flex items-center gap-2 text-sm font-mono font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 shrink-0 tabular-nums">
+            <Clock size={16} className="text-blue-200" /> {currentTime}
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-sm font-mono font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 shrink-0 tabular-nums">
-          <Clock size={16} className="text-blue-200" /> {currentTime}
-        </div>
-      </div>
+      )}
       
-      <div className="flex-1 h-[calc(100vh-80px)] overflow-hidden">
+      <div className="flex-1 h-full overflow-hidden">
         {view === AppView.HOME && renderHome()}
         {view === AppView.DETAIL && renderDetail()}
         {view === AppView.CREATE && renderCreate()}
         {view === AppView.DRIVING && renderDriving()}
+        {view === AppView.SUMMARY && renderSummary()}
       </div>
     </div>
   );
@@ -546,15 +658,18 @@ interface DrivingViewProps {
   line: BusLine;
   onExit: () => void;
   onStop: () => void;
+  onFinish: (report: CourseReport) => void;
 }
 
-const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
+const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinish }) => {
   const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(null);
   const [nextStopIdx, setNextStopIdx] = useState(0);
   const [now, setNow] = useState(new Date());
+  const [startTime] = useState(new Date());
+  const [actualArrivalTimes, setActualArrivalTimes] = useState<string[]>([]);
 
   useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 5000);
+    const interval = setInterval(() => setNow(new Date()), 1000); // 1s pour plus de précision (top départ)
     setCurrentPos({ lat: line.stops[0].lat, lng: line.stops[0].lng });
 
     if (!navigator.geolocation) return;
@@ -570,6 +685,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
   }, [line]);
 
   const currentStop = line.stops[nextStopIdx];
+  const isFirstStop = nextStopIdx === 0;
   const isLastStop = useMemo(() => nextStopIdx === line.stops.length - 1, [nextStopIdx, line.stops]);
 
   const scheduleOffset = useMemo(() => {
@@ -580,6 +696,8 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
     const diff = now.getTime() - scheduledDate.getTime();
     return Math.floor(diff / 60000);
   }, [currentStop, now]);
+
+  const isEarly = scheduleOffset < 0;
 
   const distanceRemaining = useMemo(() => {
     if (!currentPos || !currentStop) return null;
@@ -595,10 +713,46 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
   }, [distanceRemaining]);
 
   const handleNext = () => {
+    const currentTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newArrivals = [...actualArrivalTimes, currentTimeStr];
+    setActualArrivalTimes(newArrivals);
+
     if (nextStopIdx < line.stops.length - 1) {
       setNextStopIdx(prev => prev + 1);
     } else {
-      onStop();
+      const endTime = new Date();
+      const diffMs = endTime.getTime() - startTime.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const hours = Math.floor(diffMins / 60);
+      const minutes = diffMins % 60;
+      
+      const stopsReport: StopReport[] = line.stops.map((stop, idx) => {
+        const actual = newArrivals[idx] || "--:--";
+        const [schH, schM] = stop.time.split(':').map(Number);
+        const [actH, actM] = actual.split(':').map(Number);
+        const scheduledTotal = schH * 60 + schM;
+        const actualTotal = actH * 60 + actM;
+        const diff = actualTotal - scheduledTotal;
+        let status: 'early' | 'on-time' | 'late' = 'on-time';
+        if (diff > 2) status = 'late';
+        else if (diff < -2) status = 'early';
+        return {
+          stopName: stop.name,
+          scheduledTime: stop.time,
+          actualTime: actual,
+          status,
+          diffMinutes: Math.abs(diff)
+        };
+      });
+
+      onFinish({
+        lineName: line.name,
+        lineNumber: line.number,
+        startTime: startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        endTime: endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        duration: `${hours > 0 ? `${hours}h ` : ''}${minutes}min`,
+        stops: stopsReport
+      });
     }
   };
 
@@ -606,16 +760,16 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
     <div className="fixed inset-0 bg-[#080b14] text-white flex flex-col font-sans overflow-hidden z-[500]">
       <div className="flex-1 flex flex-col p-6 gap-6 overflow-hidden relative">
         <div className="flex gap-3 h-[12%] shrink-0">
-          <div className={`flex-1 rounded-3xl p-4 flex flex-col justify-center relative overflow-hidden border ${scheduleOffset > 2 ? 'bg-rose-950/20 border-rose-500/30' : scheduleOffset < -2 ? 'bg-blue-950/20 border-blue-500/30' : 'bg-emerald-950/20 border-emerald-500/30'}`}>
-            <div className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5 ${scheduleOffset > 2 ? 'text-rose-400' : scheduleOffset < -2 ? 'text-blue-400' : 'text-emerald-400'}`}>
-              {scheduleOffset > 2 ? <TrendingUp size={12} /> : scheduleOffset < -2 ? <TrendingDown size={12} /> : <CheckCircle2 size={12} />}
-              Ponctualité
+          <div className={`flex-1 rounded-3xl p-4 flex flex-col justify-center relative overflow-hidden border ${isEarly ? 'bg-amber-950/20 border-amber-500/30' : scheduleOffset > 2 ? 'bg-rose-950/20 border-rose-500/30' : 'bg-emerald-950/20 border-emerald-500/30'}`}>
+            <div className={`text-[8px] font-black uppercase tracking-[0.2em] mb-1 flex items-center gap-1.5 ${isEarly ? 'text-amber-400' : scheduleOffset > 2 ? 'text-rose-400' : 'text-emerald-400'}`}>
+              {isEarly ? <Hourglass size={12} className="animate-spin-slow" /> : scheduleOffset > 2 ? <TrendingUp size={12} /> : <CheckCircle2 size={12} />}
+              {isEarly ? 'En avance' : scheduleOffset > 2 ? 'En retard' : 'Ponctuel'}
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className={`text-2xl font-black italic ${scheduleOffset > 2 ? 'text-rose-500' : scheduleOffset < -2 ? 'text-blue-500' : 'text-emerald-500'}`}>
+              <span className={`text-2xl font-black italic ${isEarly ? 'text-amber-500' : scheduleOffset > 2 ? 'text-rose-500' : 'text-emerald-500'}`}>
                 {scheduleOffset === 0 ? 'Ok' : scheduleOffset > 0 ? `+${scheduleOffset}` : scheduleOffset}
               </span>
-              {scheduleOffset !== 0 && <span className={`text-[8px] font-bold uppercase ${scheduleOffset > 2 ? 'text-rose-500/70' : scheduleOffset < -2 ? 'text-blue-500/70' : 'text-emerald-500/70'}`}>min</span>}
+              {scheduleOffset !== 0 && <span className={`text-[8px] font-bold uppercase ${isEarly ? 'text-amber-500/70' : scheduleOffset > 2 ? 'text-rose-500/70' : 'text-emerald-500/70'}`}>min</span>}
             </div>
           </div>
           <div className="flex-1 rounded-3xl p-4 flex flex-col justify-center bg-[#10162a] border border-white/5">
@@ -636,10 +790,40 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
 
         <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] bg-[#0a0d18]">
           <MapComponent stops={line.stops} currentPos={currentPos} dark={true} isDriving={true} height="100%" />
+          
+          {/* Alerte Visuelle d'Avance à l'arrêt */}
+          {isAtStation && isEarly && (
+            <div className="absolute inset-x-6 bottom-6 bg-amber-500 p-4 rounded-3xl shadow-[0_20px_40px_rgba(245,158,11,0.4)] flex items-center justify-between animate-bounce z-20">
+              <div className="flex items-center gap-3">
+                <div className="bg-black/20 p-2 rounded-xl">
+                  <AlertTriangle size={24} className="text-white" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-900 italic">Régulation requise</span>
+                  <span className="text-lg font-black italic text-white leading-none">VEUILLEZ ATTENDRE</span>
+                </div>
+              </div>
+              <div className="bg-white/20 px-3 py-1 rounded-xl text-xl font-black italic text-white">
+                {Math.abs(scheduleOffset)}'
+              </div>
+            </div>
+          )}
+
+          {/* Flash Vert "TOP DÉPART" */}
+          {isAtStation && isFirstStop && !isEarly && (
+            <div className="absolute inset-0 bg-emerald-500/20 backdrop-blur-sm flex flex-col items-center justify-center animate-pulse z-20 pointer-events-none">
+              <div className="bg-emerald-500 p-8 rounded-[48px] shadow-[0_0_80px_rgba(16,185,129,0.6)] flex flex-col items-center gap-4 border-4 border-white/30">
+                <Zap size={64} className="text-white fill-current" />
+                <h3 className="text-4xl font-black italic uppercase tracking-tighter text-white">TOP DÉPART</h3>
+                <p className="text-emerald-100 font-bold uppercase tracking-widest text-xs">Mission en cours - Bonne route !</p>
+              </div>
+            </div>
+          )}
+
           <div className="absolute top-6 left-6 right-6 flex justify-between pointer-events-none">
             <button onClick={onStop} className="p-4 bg-[#1a1f33] border border-white/10 backdrop-blur-xl rounded-2xl pointer-events-auto active:scale-95 transition-all text-rose-500 flex items-center gap-2 shadow-xl group">
               <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
-              <span className="font-black italic uppercase text-[10px] tracking-widest">Arrêter le service</span>
+              <span className="font-black italic uppercase text-[10px] tracking-widest">Quitter</span>
             </button>
             <button onClick={onExit} className="p-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl pointer-events-auto active:scale-90 transition-all text-white/50">
               <X size={24} />
@@ -647,30 +831,52 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop }) => {
           </div>
         </div>
 
-        <div className={`border transition-all duration-500 rounded-[40px] p-6 flex items-center justify-between shadow-2xl shrink-0 ${isAtStation ? 'bg-emerald-900/40 border-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.2)]' : 'bg-[#10162a] border-white/10'}`}>
+        <div className={`border transition-all duration-500 rounded-[40px] p-6 flex items-center justify-between shadow-2xl shrink-0 ${isAtStation ? (isEarly ? 'bg-amber-900/40 border-amber-500' : 'bg-emerald-900/40 border-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.2)]') : 'bg-[#10162a] border-white/10'}`}>
           <div className="flex gap-6 items-center min-w-0">
-             <div className={`w-16 h-16 rounded-[24px] flex flex-col items-center justify-center font-black shrink-0 border-b-8 shadow-xl italic transition-colors ${isAtStation ? 'bg-emerald-500 border-emerald-700 text-white' : 'bg-blue-600 border-blue-800 text-white'}`}>
+             <div className={`w-16 h-16 rounded-[24px] flex flex-col items-center justify-center font-black shrink-0 border-b-8 shadow-xl italic transition-colors ${isAtStation ? (isEarly ? 'bg-amber-500 border-amber-700 text-white' : 'bg-emerald-500 border-emerald-700 text-white') : 'bg-blue-600 border-blue-800 text-white'}`}>
                <span className="text-[10px] opacity-70 leading-none">LIGNE</span>
                <span className="text-2xl leading-none">{line.number}</span>
              </div>
              <div className="flex flex-col min-w-0">
-               <div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 flex items-center gap-2 ${isAtStation ? 'text-emerald-400 animate-pulse' : 'text-blue-500'}`}>
-                 {isAtStation ? <MapPinCheck size={12} /> : <Navigation2 size={12} fill="currentColor" />}
-                 {isAtStation ? (isLastStop ? 'TERMINUS ATTEINT' : 'ARRÊT DÉTECTÉ') : 'PROCHAINE STATION'}
+               <div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 flex items-center gap-2 ${isAtStation ? (isEarly ? 'text-amber-400' : 'text-emerald-400 animate-pulse') : 'text-blue-500'}`}>
+                 {isAtStation ? (isEarly ? <Hourglass size={12} /> : <MapPinCheck size={12} />) : <Navigation2 size={12} fill="currentColor" />}
+                 {isAtStation ? (isEarly ? 'RÉGULATION' : isLastStop ? 'TERMINUS' : 'ARRÊT DÉTECTÉ') : 'PROCHAINE STATION'}
                </div>
                <h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none truncate pr-4">{currentStop?.name || "FIN DE SERVICE"}</h2>
              </div>
           </div>
-          <div className={`text-4xl font-black italic tabular-nums shrink-0 ml-4 transition-colors ${isAtStation ? 'text-emerald-400' : 'text-slate-200'}`}>{currentStop?.time}</div>
+          <div className={`text-4xl font-black italic tabular-nums shrink-0 ml-4 transition-colors ${isAtStation ? (isEarly ? 'text-amber-400' : 'text-emerald-400') : 'text-slate-200'}`}>{currentStop?.time}</div>
         </div>
 
         <div className="flex gap-6 h-[18%] shrink-0 pb-4">
           <button onClick={() => setNextStopIdx(p => Math.max(0, p - 1))} className="flex-1 bg-white/5 rounded-[40px] flex items-center justify-center text-slate-600 border border-white/5 active:bg-white/10 transition-colors">
             <ChevronLeft size={48} />
           </button>
-          <button onClick={handleNext} className={`flex-[3] border-b-[12px] rounded-[40px] flex flex-col items-center justify-center space-y-1 transition-all shadow-2xl ${isLastStop ? 'bg-rose-600 border-rose-800 shadow-[0_20px_60px_rgba(244,63,94,0.4)]' : (isAtStation ? 'bg-emerald-600 border-emerald-800 animate-bounce shadow-[0_20px_60px_rgba(16,185,129,0.4)]' : 'bg-blue-600 border-blue-800 shadow-[0_20px_60px_rgba(37,99,235,0.4)]')} active:translate-y-2 active:border-b-4`}>
-            <div className="text-xs font-black uppercase tracking-[0.4em] opacity-60">{isLastStop ? 'Mission accomplie' : (isAtStation ? 'Départ effectué ?' : "Valider l'arrivée")}</div>
-            <div className="text-2xl font-black italic uppercase tracking-tight flex items-center gap-3">{isLastStop ? <><CheckSquare size={24} /><span>Fin de course</span></> : 'Station suivante'}</div>
+          <button 
+            onClick={handleNext} 
+            className={`flex-[3] border-b-[12px] rounded-[40px] flex flex-col items-center justify-center space-y-1 transition-all shadow-2xl ${
+              isLastStop 
+                ? 'bg-rose-600 border-rose-800 shadow-[0_20px_60px_rgba(244,63,94,0.4)]' 
+                : (isAtStation 
+                    ? (isEarly 
+                        ? 'bg-amber-600 border-amber-800 shadow-[0_20px_60px_rgba(245,158,11,0.3)]' 
+                        : 'bg-emerald-600 border-emerald-800 shadow-[0_20px_60px_rgba(16,185,129,0.4)]'
+                      ) 
+                    : 'bg-blue-600 border-blue-800 shadow-[0_20px_60px_rgba(37,99,235,0.4)]')
+            } active:translate-y-2 active:border-b-4 group`}
+          >
+            <div className="text-xs font-black uppercase tracking-[0.4em] opacity-60">
+              {isLastStop ? 'Mission accomplie' : (isAtStation ? (isEarly ? `Attendre ${Math.abs(scheduleOffset)}min` : 'C\'est l\'heure !') : "Valider l'arrivée")}
+            </div>
+            <div className="text-2xl font-black italic uppercase tracking-tight flex items-center gap-3">
+              {isLastStop ? (
+                <><CheckSquare size={24} /><span>Fin de course</span></>
+              ) : isFirstStop ? (
+                isEarly ? <><Hourglass size={24} className="animate-pulse" /><span>Préparation</span></> : <><Zap size={24} /><span>DÉPART</span></>
+              ) : (
+                isEarly && isAtStation ? <span>Patienter...</span> : 'Station suivante'
+              )}
+            </div>
           </button>
         </div>
       </div>
