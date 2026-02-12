@@ -39,7 +39,6 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
 
     const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
     
-    // Utilisation du serveur de routage OSM Allemand, souvent plus stable que le serveur de démo OSRM standard
     const routingUrls = [
       `https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}?overview=full&geometries=geojson`,
       `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
@@ -65,14 +64,12 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
       }
     }
     
-    // Si tous les serveurs échouent, on trace une ligne droite (fallback)
     return {
       type: 'LineString',
       coordinates: points.map(p => [p.lng, p.lat])
     };
   };
 
-  // Initialisation de la carte Leaflet
   useEffect(() => {
     const L = (window as any).L;
     if (!L) {
@@ -121,7 +118,6 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     };
   }, [containerId, dark, isDriving]);
 
-  // Mise à jour des éléments visuels (tracé et marqueurs)
   useEffect(() => {
     const map = mapRef.current;
     const L = (window as any).L;
@@ -136,7 +132,6 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
         if (geometry) {
           const routeColor = dark ? '#3b82f6' : '#2563eb';
           
-          // Tracé "Glow" (néon)
           L.geoJSON(geometry, {
             style: { 
               color: routeColor, 
@@ -147,7 +142,6 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
             }
           }).addTo(routeLayerRef.current);
 
-          // Ligne de route principale
           L.geoJSON(geometry, {
             style: { 
               color: routeColor, 
@@ -160,7 +154,6 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
         }
       }
 
-      // Marqueurs d'arrêts personnalisés
       stops.forEach((stop, idx) => {
         const isFirst = idx === 0;
         const isLast = idx === stops.length - 1;
@@ -190,7 +183,6 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
         
         const marker = L.marker([stop.lat, stop.lng], { icon }).addTo(markersLayerRef.current);
         
-        // Ajout du popup avec le nom de l'arrêt
         marker.bindPopup(`
           <div style="font-family: 'Inter', sans-serif; text-align: center;">
             <div style="font-size: 10px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Station</div>
@@ -211,7 +203,6 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     updateMapUI();
   }, [stops, dark, isDriving]);
 
-  // Gestion de la position en temps réel du véhicule
   useEffect(() => {
     const map = mapRef.current;
     const L = (window as any).L;
@@ -234,13 +225,9 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
             align-items:center; 
             justify-content:center;
           ">
-            <div style="
-              width:0; 
-              height:0; 
-              border-left: 10px solid transparent; 
-              border-right: 10px solid transparent; 
-              border-bottom: 18px solid white;
-            "></div>
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+              <path d="M4 16c0 1.1.9 2 2 2h1v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h6v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v8zm3.5 1c-.8 0-1.5-.7-1.5-1.5S6.7 14 7.5 14s1.5.7 1.5 1.5S8.3 17 7.5 17zm9 0c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5zM6 8h12v4H6V8z"/>
+            </svg>
           </div>`,
         iconSize: [38, 38],
         iconAnchor: [19, 19]
