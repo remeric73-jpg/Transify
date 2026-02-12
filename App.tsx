@@ -478,7 +478,13 @@ const App: React.FC = () => {
     <div className="h-[100dvh] w-full max-w-lg mx-auto overflow-hidden shadow-2xl relative bg-slate-50 text-slate-900 flex flex-col">
       {view !== AppView.SUMMARY && view !== AppView.DRIVING && view !== AppView.PREP && view !== AppView.GEOMANUEL && view !== AppView.MANUAL_SUMMARY && (
         <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0 print:hidden">
-          <div className="flex items-center gap-3"><div className="bg-white/20 p-2 rounded-xl"><Bus size={22} /></div><h1 className="text-xl font-black uppercase italic tracking-tighter">GEOligne</h1></div>
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-2 rounded-xl"><Bus size={22} /></div>
+            <div className="flex flex-col">
+              <h1 className="text-xl font-black uppercase italic tracking-tighter leading-none">GEOligne</h1>
+              <span className="text-[8px] font-bold opacity-70 uppercase tracking-widest mt-0.5">BY MRICO73</span>
+            </div>
+          </div>
           <div className="flex items-center gap-2 text-sm font-mono font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 shrink-0 tabular-nums"><Clock size={16} className="text-blue-200" /> {currentTime}</div>
         </div>
       )}
@@ -929,7 +935,6 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
               <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Montées</span>
             </div>
             <div className="flex items-center justify-between">
-              {/* Corrected state setter and variable names below */}
               <button onClick={() => setCurrentBoarding(Math.max(0, currentBoarding - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button>
               <div className="text-2xl font-black italic text-emerald-400 tabular-nums">{currentBoarding}</div>
               <button onClick={() => setCurrentBoarding(currentBoarding + 1)} className="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg shadow-emerald-500/20 flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button>
@@ -941,7 +946,6 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
               <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Descentes</span>
             </div>
             <div className="flex items-center justify-between">
-              {/* Corrected state setter and variable names below */}
               <button onClick={() => setCurrentDropped(Math.max(0, currentDropped - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button>
               <div className="text-2xl font-black italic text-rose-400 tabular-nums">{currentDropped}</div>
               <button onClick={() => setCurrentDropped(currentDropped + 1)} className="w-10 h-10 rounded-xl bg-rose-600 shadow-lg shadow-rose-500/20 flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button>
