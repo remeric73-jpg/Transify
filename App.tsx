@@ -33,7 +33,10 @@ import {
   Users,
   Plus,
   Minus,
-  AlertCircle
+  AlertCircle,
+  UserMinus,
+  UserPlus,
+  FileText
 } from 'lucide-react';
 import { AppView, BusLine, Stop, CourseReport, StopReport } from './types';
 import { INITIAL_LINES } from './constants';
@@ -180,6 +183,10 @@ const App: React.FC = () => {
 
   const handleCourseFinished = (report: CourseReport) => { setLastReport(report); setView(AppView.SUMMARY); };
 
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   const renderHome = () => (
     <div className="flex flex-col h-full bg-slate-50">
       <input type="file" accept=".xml" ref={fileInputRef} onChange={handleImportXML} className="hidden" />
@@ -216,37 +223,79 @@ const App: React.FC = () => {
   const renderSummary = () => {
     if (!lastReport) return null;
     const totalBoarded = lastReport.stops.reduce((acc, s) => acc + (s.boardedCount || 0), 0);
+    const totalDropped = lastReport.stops.reduce((acc, s) => acc + (s.droppedCount || 0), 0);
     return (
-      <div className="flex flex-col h-full bg-slate-950 text-white overflow-y-auto">
+      <div className="flex flex-col h-full bg-slate-950 text-white overflow-y-auto print:bg-white print:text-slate-900">
         <div className="p-8 space-y-8 pb-32">
-          <div className="flex justify-between items-center"><div className="p-3 bg-white/5 rounded-2xl border border-white/10"><CheckCircle2 size={32} className="text-emerald-500" /></div><button onClick={() => setView(AppView.HOME)} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-white/5 active:scale-95 transition-all"><Home size={16} /> Fermer</button></div>
-          <div className="space-y-2"><h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Rapport de Mission</h2><p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Résumé de l'activité - Ligne {lastReport.lineNumber}</p></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1"><div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Durée Totale</div><div className="text-2xl font-black italic text-emerald-400">{lastReport.duration}</div></div>
-            <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1"><div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Passagers Totaux</div><div className="text-2xl font-black italic text-blue-400">{totalBoarded}</div></div>
+          <div className="flex justify-between items-center print:hidden">
+            <div className="p-3 bg-white/5 rounded-2xl border border-white/10">
+              <CheckCircle2 size={32} className="text-emerald-500" />
+            </div>
+            <button onClick={() => setView(AppView.HOME)} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-white/5 active:scale-95 transition-all">
+              <Home size={16} /> Fermer
+            </button>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-[40px] overflow-hidden">
-            <div className="bg-white/5 p-6 border-b border-white/10 flex items-center gap-3"><CalendarDays size={18} className="text-blue-500" /><span className="text-xs font-black uppercase tracking-widest italic">Chronologie des arrêts</span></div>
+          
+          <div className="space-y-2">
+            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Rapport de Mission</h2>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Résumé de l'activité - Ligne {lastReport.lineNumber}</p>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1 print:border-slate-200">
+              <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Durée Totale de Service</div>
+              <div className="text-2xl font-black italic text-emerald-400 print:text-emerald-600">{lastReport.duration}</div>
+            </div>
+            
+            <div className="bg-blue-600/10 border border-blue-500/20 rounded-[32px] p-6 space-y-1 print:border-blue-200">
+              <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Total Montées</div>
+              <div className="text-3xl font-black italic text-blue-400 print:text-blue-600">{totalBoarded} <span className="text-sm not-italic opacity-60">pax</span></div>
+            </div>
+            
+            <div className="bg-rose-600/10 border border-rose-500/20 rounded-[32px] p-6 space-y-1 print:border-rose-200">
+              <div className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em]">Total Descentes</div>
+              <div className="text-3xl font-black italic text-rose-400 print:text-rose-600">{totalDropped} <span className="text-sm not-italic opacity-60">pax</span></div>
+            </div>
+          </div>
+
+          <div className="bg-white/5 border border-white/10 rounded-[40px] overflow-hidden print:border-slate-200">
+            <div className="bg-white/5 p-6 border-b border-white/10 flex items-center gap-3 print:bg-slate-50 print:border-slate-200">
+              <CalendarDays size={18} className="text-blue-500" />
+              <span className="text-xs font-black uppercase tracking-widest italic">Chronologie détaillée</span>
+            </div>
             <div className="p-6 space-y-6">
               {lastReport.stops.map((stop, i) => (
-                <div key={i} className="flex items-center justify-between border-b border-white/5 pb-4 last:border-0 last:pb-0">
+                <div key={i} className="flex items-center justify-between border-b border-white/5 pb-4 last:border-0 last:pb-0 print:border-slate-100">
                   <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-slate-100 truncate">{stop.stopName}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-500 font-bold uppercase">Prévu: {stop.scheduledTime}</span>
-                      <span className="text-blue-500 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter"><Users size={10} /> {stop.boardedCount} montées</span>
+                    <span className="font-bold text-slate-100 truncate print:text-slate-900">{stop.stopName}</span>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-[9px] text-slate-500 font-bold uppercase">Prévu: {stop.scheduledTime}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-blue-400 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter"><UserPlus size={10} /> {stop.boardedCount}</span>
+                        <span className="text-rose-400 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter"><UserMinus size={10} /> {stop.droppedCount}</span>
+                      </div>
                     </div>
                   </div>
                   <div className="text-right flex flex-col items-end shrink-0">
                     <span className={`text-lg font-black italic leading-none ${stop.status === 'late' ? 'text-rose-500' : stop.status === 'early' ? 'text-blue-400' : 'text-emerald-400'}`}>{stop.actualTime}</span>
-                    <div className={`text-[8px] font-black uppercase mt-1 px-2 py-0.5 rounded-full border ${stop.status === 'late' ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : stop.status === 'early' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'}`}>{stop.status === 'late' ? `+${stop.diffMinutes} min` : stop.status === 'early' ? `${stop.diffMinutes} min` : 'À l\'heure'}</div>
+                    <div className={`text-[8px] font-black uppercase mt-1 px-2 py-0.5 rounded-full border ${stop.status === 'late' ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : stop.status === 'early' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'}`}>
+                      {stop.status === 'late' ? `+${stop.diffMinutes} min` : stop.status === 'early' ? `${stop.diffMinutes} min` : 'Ponctuel'}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[env(safe-area-inset-bottom,24px)]"><div className="flex gap-4 max-w-md mx-auto"><button onClick={() => setView(AppView.HOME)} className="flex-1 bg-white/5 text-white p-5 rounded-3xl font-black uppercase tracking-tight active:scale-95 transition-all text-sm border border-white/10">Home</button><button onClick={() => alert("Rapport sauvegardé.")} className="flex-1 bg-blue-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight"><Share2 size={22} /><span className="text-sm">Partager</span></button></div></div>
+        
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[env(safe-area-inset-bottom,24px)] print:hidden">
+          <div className="flex gap-4 max-w-md mx-auto">
+            <button onClick={handleExportPDF} className="flex-1 bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight">
+              <FileText size={22} />
+              <span className="text-sm">Exporter en PDF</span>
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -266,7 +315,7 @@ const App: React.FC = () => {
   return (
     <div className="h-[100dvh] w-full max-w-lg mx-auto overflow-hidden shadow-2xl relative bg-slate-50 text-slate-900 flex flex-col">
       {view !== AppView.SUMMARY && view !== AppView.DRIVING && (
-        <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0">
+        <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0 print:hidden">
           <div className="flex items-center gap-3"><div className="bg-white/20 p-2 rounded-xl"><Bus size={22} /></div><h1 className="text-xl font-black uppercase italic tracking-tighter">Transify</h1></div>
           <div className="flex items-center gap-2 text-sm font-mono font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 shrink-0 tabular-nums"><Clock size={16} className="text-blue-200" /> {currentTime}</div>
         </div>
@@ -297,7 +346,9 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
   const [startTime] = useState(new Date());
   const [actualArrivalTimes, setActualArrivalTimes] = useState<string[]>([]);
   const [boardedCounts, setBoardedCounts] = useState<number[]>([]);
+  const [droppedCounts, setDroppedCounts] = useState<number[]>([]);
   const [currentBoarding, setCurrentBoarding] = useState(0);
+  const [currentDropped, setCurrentDropped] = useState(0);
   
   // États pour l'automatisme
   const [capturedArrivalTime, setCapturedArrivalTime] = useState<string | null>(null);
@@ -348,10 +399,13 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
     const timeToRecord = capturedArrivalTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newArrivals = [...actualArrivalTimes, timeToRecord];
     const newBoarded = [...boardedCounts, currentBoarding];
+    const newDropped = [...droppedCounts, currentDropped];
     
     setActualArrivalTimes(newArrivals);
     setBoardedCounts(newBoarded);
+    setDroppedCounts(newDropped);
     setCurrentBoarding(0);
+    setCurrentDropped(0);
     setCapturedArrivalTime(null);
     wasAtStationRef.current = false;
 
@@ -371,7 +425,8 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
           actualTime: actual,
           status: diff > 2 ? 'late' : diff < -2 ? 'early' : 'on-time',
           diffMinutes: Math.abs(diff),
-          boardedCount: newBoarded[idx] || 0
+          boardedCount: newBoarded[idx] || 0,
+          droppedCount: newDropped[idx] || 0
         };
       });
 
@@ -384,7 +439,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
         stops: stopsReport
       });
     }
-  }, [nextStopIdx, line.stops, actualArrivalTimes, boardedCounts, currentBoarding, capturedArrivalTime, startTime, onFinish]);
+  }, [nextStopIdx, line.stops, actualArrivalTimes, boardedCounts, droppedCounts, currentBoarding, currentDropped, capturedArrivalTime, startTime, onFinish]);
 
   // AUTOMATISME : Détection Entrée / Sortie
   useEffect(() => {
@@ -434,21 +489,44 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
           <div className="text-3xl font-black italic text-slate-200 tabular-nums">{currentStop?.time}</div>
         </div>
 
-        <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600/20 p-2 rounded-xl text-blue-400"><Users size={20} /></div>
-            <div className="flex flex-col"><span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Flux passagers</span><span className="text-lg font-black italic">Montées</span></div>
+        {/* Passenger Flux Module */}
+        <div className="grid grid-cols-2 gap-3 shrink-0">
+          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-emerald-600/20 p-1.5 rounded-lg text-emerald-400"><UserPlus size={16} /></div>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Montées</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <button onClick={() => setCurrentBoarding(Math.max(0, currentBoarding - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button>
+              <div className="text-2xl font-black italic text-emerald-400 tabular-nums">{currentBoarding}</div>
+              <button onClick={() => setCurrentBoarding(currentBoarding + 1)} className="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg shadow-emerald-500/20 flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button onClick={() => setCurrentBoarding(Math.max(0, currentBoarding - 1))} className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={20} /></button>
-            <div className="w-12 text-center text-3xl font-black italic text-blue-400 tabular-nums">{currentBoarding}</div>
-            <button onClick={() => setCurrentBoarding(currentBoarding + 1)} className="w-12 h-12 rounded-2xl bg-blue-600 shadow-lg shadow-blue-500/20 flex items-center justify-center active:scale-90 transition-all"><Plus size={20} /></button>
+          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-rose-600/20 p-1.5 rounded-lg text-rose-400"><UserMinus size={16} /></div>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Descentes</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <button onClick={() => setCurrentDropped(Math.max(0, currentDropped - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button>
+              <div className="text-2xl font-black italic text-rose-400 tabular-nums">{currentDropped}</div>
+              <button onClick={() => setCurrentDropped(currentDropped + 1)} className="w-10 h-10 rounded-xl bg-rose-600 shadow-lg shadow-rose-500/20 flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button>
+            </div>
           </div>
         </div>
 
         <div className="flex gap-4 h-[12%] shrink-0 pb-2">
           <button onClick={() => setNextStopIdx(p => Math.max(0, p - 1))} className="flex-1 bg-white/5 rounded-[32px] flex items-center justify-center text-slate-600 border border-white/5 active:bg-white/10 transition-colors"><ChevronLeft size={32} /></button>
-          <button onClick={handleNext} className={`flex-[3] border-b-[8px] rounded-[32px] flex items-center justify-center transition-all shadow-2xl ${isLastStop ? 'bg-rose-600 border-rose-800 shadow-rose-900/40' : isAtStation ? (isEarly ? 'bg-amber-600 border-amber-800' : isLate ? 'bg-rose-600 border-rose-800' : 'bg-emerald-600 border-emerald-800') : 'bg-blue-600 border-blue-800'} active:translate-y-1 active:border-b-2`}><span className="text-xl font-black italic uppercase tracking-tight">{isLastStop ? 'Terminer la mission' : isAtStation ? 'Valider et Partir' : 'Séquence suivante'}</span></button>
+          <button onClick={handleNext} className={`flex-[3] border-b-[8px] rounded-[32px] flex items-center justify-center transition-all shadow-2xl ${isLastStop ? 'bg-rose-600 border-rose-800 shadow-rose-900/40' : isAtStation ? (isEarly ? 'bg-amber-600 border-amber-800' : isLate ? 'bg-rose-600 border-rose-800' : 'bg-emerald-600 border-emerald-800') : 'bg-blue-600 border-blue-800'} active:translate-y-1 active:border-b-2`}>
+            <span className="text-xl font-black italic uppercase tracking-tight flex items-center gap-2">
+              {isLastStop ? 'Terminer la mission' : isAtStation ? 'Valider et Partir' : (
+                <>
+                  <CheckSquare size={20} />
+                  VALIDER ARRET MANUELLEMENT
+                </>
+              )}
+            </span>
+          </button>
         </div>
       </div>
     </div>

@@ -20,6 +20,7 @@ export interface StopReport {
   status: 'early' | 'on-time' | 'late';
   diffMinutes: number;
   boardedCount: number;
+  droppedCount: number;
 }
 
 export interface CourseReport {
