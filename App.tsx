@@ -45,7 +45,9 @@ import {
   Pencil,
   Smartphone,
   Tablet,
-  Monitor
+  Monitor,
+  Layers,
+  Globe
 } from 'lucide-react';
 import { AppView, BusLine, Stop, CourseReport, StopReport, ManualStop, ManualReport } from './types';
 import { INITIAL_LINES } from './constants';
@@ -82,6 +84,7 @@ const App: React.FC = () => {
   const [lastManualReport, setLastManualReport] = useState<ManualReport | null>(null);
   const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number } | null>(null);
   const [screenType, setScreenType] = useState<'Mobile' | 'Tablette' | 'Ordinateur'>('Mobile');
+  const [isSatellite, setIsSatellite] = useState(false);
 
   // Détection du type d'écran
   useEffect(() => {
@@ -142,7 +145,7 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleSelectLine = (line: BusLine) => { setSelectedLine(line); setMapFocus(null); setView(AppView.DETAIL); };
+  const handleSelectLine = (line: BusLine) => { setSelectedLine(line); setMapFocus(null); setIsSatellite(false); setView(AppView.DETAIL); };
   const handleCreateLine = () => { setNewLine({ number: '', name: '', stops: [] }); setView(AppView.CREATE); };
   const handleEditLine = (e: React.MouseEvent, line: BusLine) => {
     e.stopPropagation();
@@ -334,8 +337,21 @@ const App: React.FC = () => {
   const renderDetail = () => selectedLine && (
     <div className="flex flex-col lg:flex-row h-full bg-white relative">
       <div className="h-[40vh] lg:h-full lg:w-1/2 relative shrink-0">
-        <MapComponent stops={selectedLine.stops} focusLocation={mapFocus} height="100%" />
-        <button onClick={() => setView(AppView.HOME)} className="absolute top-4 left-4 bg-white p-3 rounded-full shadow-xl z-20 active:scale-90 transition-transform"><ChevronLeft size={24} className="text-slate-800" /></button>
+        <MapComponent stops={selectedLine.stops} focusLocation={mapFocus} satellite={isSatellite} height="100%" />
+        <div className="absolute top-4 left-4 flex gap-3 z-20">
+          <button onClick={() => setView(AppView.HOME)} className="bg-white p-3 rounded-full shadow-xl active:scale-90 transition-transform"><ChevronLeft size={24} className="text-slate-800" /></button>
+        </div>
+        <div className="absolute top-4 right-4 z-20">
+          <button 
+            onClick={() => setIsSatellite(!isSatellite)} 
+            className={`p-3 rounded-full shadow-xl transition-all active:scale-90 flex items-center gap-2 ${isSatellite ? 'bg-blue-600 text-white' : 'bg-white text-slate-800'}`}
+          >
+            {isSatellite ? <Globe size={24} /> : <Layers size={24} />}
+            <span className="text-[10px] font-black uppercase tracking-tight hidden sm:block">
+              {isSatellite ? 'Standard' : 'Satellite'}
+            </span>
+          </button>
+        </div>
       </div>
       <div className="flex-1 flex flex-col bg-white rounded-none lg:mt-0 relative z-10 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] lg:shadow-none min-h-0 overflow-visible">
         <div className="p-8 flex-1 overflow-y-auto pb-48 lg:pb-32 min-h-0">

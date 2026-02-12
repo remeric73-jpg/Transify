@@ -10,6 +10,7 @@ interface MapComponentProps {
   height?: string;
   onMapClick?: (lat: number, lng: number) => void;
   dark?: boolean;
+  satellite?: boolean;
   isDriving?: boolean;
 }
 
@@ -23,6 +24,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
   height = "200px", 
   onMapClick, 
   dark = false, 
+  satellite = false,
   isDriving = false 
 }) => {
   const mapRef = useRef<any>(null);
@@ -95,11 +97,18 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     mapInstance.setView(initialCenter, 15);
     mapRef.current = mapInstance;
 
-    const tileUrl = dark 
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    let tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    let attribution = '&copy; OpenStreetMap contributors';
+
+    if (satellite) {
+      tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+      attribution = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community';
+    } else if (dark) {
+      tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+      attribution = '&copy; OpenStreetMap contributors &copy; CARTO';
+    }
       
-    L.tileLayer(tileUrl, { crossOrigin: true }).addTo(mapInstance);
+    L.tileLayer(tileUrl, { crossOrigin: true, attribution }).addTo(mapInstance);
 
     markersLayerRef.current = L.layerGroup().addTo(mapInstance);
     routeLayerRef.current = L.layerGroup().addTo(mapInstance);
@@ -118,7 +127,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
       resizeObserver.disconnect();
       mapInstance.remove();
     };
-  }, [containerId, dark, isDriving]);
+  }, [containerId, dark, satellite, isDriving]);
 
   // Effet pour gérer le focusLocation (recentrage dynamique)
   useEffect(() => {
@@ -140,7 +149,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
       if (stops.length >= 2) {
         const geometry = await fetchRoute(stops);
         if (geometry) {
-          const routeColor = dark ? '#3b82f6' : '#2563eb';
+          const routeColor = satellite ? '#facc15' : (dark ? '#3b82f6' : '#2563eb');
           
           L.geoJSON(geometry, {
             style: { 
@@ -167,7 +176,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
       stops.forEach((stop, idx) => {
         const isFirst = idx === 0;
         const isLast = idx === stops.length - 1;
-        const color = isFirst ? '#10b981' : (isLast ? '#ef4444' : '#3b82f6');
+        const color = isFirst ? '#10b981' : (isLast ? '#ef4444' : (satellite ? '#facc15' : '#3b82f6'));
         
         const icon = L.divIcon({
           className: 'custom-stop-icon',
@@ -211,7 +220,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     };
 
     updateMapUI();
-  }, [stops, dark, isDriving]);
+  }, [stops, dark, satellite, isDriving]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -264,7 +273,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
   }
 
   return (
-    <div className={`overflow-hidden w-full h-full relative ${dark ? 'bg-[#080b14]' : 'bg-slate-100'}`} style={{ zIndex: 1, height }}>
+    <div className={`overflow-hidden w-full h-full relative ${satellite ? 'bg-[#1a1c21]' : (dark ? 'bg-[#080b14]' : 'bg-slate-100')}`} style={{ zIndex: 1, height }}>
       <div id={containerId} style={{ height: '100%', width: '100%' }} className="touch-none" />
     </div>
   );
