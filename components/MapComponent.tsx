@@ -87,7 +87,8 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
       dragging: !isDriving,
       touchZoom: !isDriving,
       scrollWheelZoom: !isDriving,
-      doubleClickZoom: !isDriving
+      doubleClickZoom: !isDriving,
+      tap: true // Optimisation pour les navigateurs mobiles
     });
 
     const initialCenter: [number, number] = currentPos 
@@ -98,14 +99,14 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     mapRef.current = mapInstance;
 
     let tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    let attribution = '&copy; OpenStreetMap contributors';
+    let attribution = '&copy; OpenStreetMap';
 
     if (satellite) {
       tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-      attribution = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community';
+      attribution = 'Esri &copy; OpenStreetMap';
     } else if (dark) {
       tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-      attribution = '&copy; OpenStreetMap contributors &copy; CARTO';
+      attribution = '&copy; CARTO &copy; OSM';
     }
       
     L.tileLayer(tileUrl, { crossOrigin: true, attribution }).addTo(mapInstance);
@@ -150,17 +151,6 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
         const geometry = await fetchRoute(stops);
         if (geometry) {
           const routeColor = satellite ? '#facc15' : (dark ? '#3b82f6' : '#2563eb');
-          
-          L.geoJSON(geometry, {
-            style: { 
-              color: routeColor, 
-              weight: 14, 
-              opacity: 0.15,
-              lineCap: 'round',
-              lineJoin: 'round'
-            }
-          }).addTo(routeLayerRef.current);
-
           L.geoJSON(geometry, {
             style: { 
               color: routeColor, 
@@ -187,30 +177,19 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
               height: 20px; 
               border-radius: 50%; 
               border: 3px solid ${isFirst || isLast ? '#fff' : color}; 
-              box-shadow: 0 0 15px rgba(0,0,0,0.25);
+              box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
               display: flex;
               align-items: center;
               justify-content: center;
               color: ${isFirst || isLast ? '#fff' : color};
               font-size: 10px;
               font-weight: 900;
-              font-family: 'Inter', sans-serif;
             ">${isFirst ? 'A' : isLast ? 'B' : ''}</div>`,
           iconSize: [20, 20],
           iconAnchor: [10, 10]
         });
         
-        const marker = L.marker([stop.lat, stop.lng], { icon }).addTo(markersLayerRef.current);
-        
-        marker.bindPopup(`
-          <div style="font-family: 'Inter', sans-serif; text-align: center;">
-            <div style="font-size: 10px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px;">Station</div>
-            <div style="font-size: 14px; font-weight: 800; color: #1e293b; letter-spacing: -0.02em;">${stop.name}</div>
-          </div>
-        `, {
-          closeButton: false,
-          offset: [0, -10]
-        });
+        L.marker([stop.lat, stop.lng], { icon }).addTo(markersLayerRef.current).bindPopup(`<b>${stop.name}</b>`, { closeButton: false, offset: [0, -10] });
       });
 
       if (!isDriving && stops.length > 0 && !focusLocation) {
@@ -239,13 +218,13 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
             height: 38px; 
             border-radius: 50%; 
             border: 4px solid white; 
-            box-shadow: 0 0 30px rgba(59,130,246,0.9); 
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
             display:flex; 
             align-items:center; 
             justify-content:center;
           ">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
-              <path d="M4 16c0 1.1.9 2 2 2h1v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h6v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v8zm3.5 1c-.8 0-1.5-.7-1.5-1.5S6.7 14 7.5 14s1.5.7 1.5 1.5S8.3 17 7.5 17zm9 0c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5zM6 8h12v4H6V8z"/>
+              <path d="M4 16c0 1.1.9 2 2 2h1v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h6v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v8zM6 8h12v4H6V8z"/>
             </svg>
           </div>`,
         iconSize: [38, 38],
@@ -258,23 +237,22 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     }
 
     if (isDriving) {
-      map.panTo([currentPos.lat, currentPos.lng], { animate: true, duration: 1.5 });
+      map.panTo([currentPos.lat, currentPos.lng], { animate: true });
     }
   }, [currentPos, isDriving]);
 
   if (loadError) {
     return (
       <div className="w-full flex flex-col items-center justify-center p-10 bg-slate-50 text-slate-400 text-center" style={{ height }}>
-        <WifiOff size={48} className="mb-4 opacity-20" />
-        <p className="text-sm font-black uppercase tracking-widest italic">Service Cartographique Hors-ligne</p>
-        <p className="text-[10px] opacity-60 max-w-[220px] mt-2 leading-relaxed">Impossible d'établir une connexion avec les serveurs de cartes. Vérifiez votre accès internet.</p>
+        <WifiOff size={40} className="mb-4 opacity-20" />
+        <p className="text-sm font-black uppercase tracking-widest italic">Carte Indisponible</p>
       </div>
     );
   }
 
   return (
     <div className={`overflow-hidden w-full h-full relative ${satellite ? 'bg-[#1a1c21]' : (dark ? 'bg-[#080b14]' : 'bg-slate-100')}`} style={{ zIndex: 1, height }}>
-      <div id={containerId} style={{ height: '100%', width: '100%' }} className="touch-none" />
+      <div id={containerId} style={{ height: '100%', width: '100%' }} />
     </div>
   );
 });

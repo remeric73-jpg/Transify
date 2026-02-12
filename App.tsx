@@ -47,7 +47,9 @@ import {
   Tablet,
   Monitor,
   Layers,
-  Globe
+  Globe,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { AppView, BusLine, Stop, CourseReport, StopReport, ManualStop, ManualReport } from './types';
 import { INITIAL_LINES } from './constants';
@@ -145,11 +147,20 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  const generateId = () => Math.random().toString(36).substr(2, 9);
+
   const handleSelectLine = (line: BusLine) => { setSelectedLine(line); setMapFocus(null); setIsSatellite(false); setView(AppView.DETAIL); };
-  const handleCreateLine = () => { setNewLine({ number: '', name: '', stops: [] }); setView(AppView.CREATE); };
+  
+  const handleCreateLine = () => { 
+    setNewLine({ number: '', name: '', stops: [] }); 
+    setView(AppView.CREATE); 
+  };
+  
   const handleEditLine = (e: React.MouseEvent, line: BusLine) => {
     e.stopPropagation();
-    setNewLine(line);
+    // On s'assure que chaque arrêt a un ID unique pour le rendu React stable
+    const stopsWithIds = line.stops.map(s => ({ ...s, id: s.id || generateId() }));
+    setNewLine({ ...line, stops: stopsWithIds });
     setView(AppView.CREATE);
   };
 
@@ -186,7 +197,7 @@ const App: React.FC = () => {
       const lineElements = xmlDoc.getElementsByTagName("line");
       for (let i = 0; i < lineElements.length; i++) {
         const lineEl = lineElements[i];
-        const id = lineEl.getAttribute("id") || Math.random().toString(36).substr(2, 9);
+        const id = lineEl.getAttribute("id") || generateId();
         const number = lineEl.getElementsByTagName("number")[0]?.textContent || "??";
         const name = lineEl.getElementsByTagName("name")[0]?.textContent || "Inconnu";
         const stops: Stop[] = [];
@@ -194,6 +205,7 @@ const App: React.FC = () => {
         for (let j = 0; j < stopElements.length; j++) {
           const stopEl = stopElements[j];
           stops.push({
+            id: generateId(),
             name: stopEl.getElementsByTagName("name")[0]?.textContent || "Station",
             time: stopEl.getElementsByTagName("time")[0]?.textContent || "00:00",
             lat: parseFloat(stopEl.getElementsByTagName("lat")[0]?.textContent || "0"),
@@ -220,12 +232,13 @@ const App: React.FC = () => {
   const handleConvertManualToLine = () => {
     if (!lastManualReport) return;
     const stopsFromManual: Stop[] = lastManualReport.stops.map((ms, idx) => ({
+      id: generateId(),
       name: `Arrêt ${idx + 1}`,
       time: ms.time,
       lat: ms.lat,
       lng: ms.lng
     }));
-    setNewLine({ number: '', name: '', stops: stopsFromManual });
+    setNewLine({ number: 'M1', name: `Itinéraire Manuel ${new Date().toLocaleDateString()}`, stops: stopsFromManual });
     setView(AppView.CREATE);
   };
 
@@ -235,7 +248,7 @@ const App: React.FC = () => {
       setLines(prev => prev.map(l => l.id === newLine.id ? (newLine as BusLine) : l));
     } else {
       const lineToAdd: BusLine = { 
-        id: Math.random().toString(36).substr(2, 9), 
+        id: generateId(), 
         number: newLine.number!, 
         name: newLine.name!, 
         stops: newLine.stops as Stop[] 
@@ -251,14 +264,24 @@ const App: React.FC = () => {
   };
 
   const handleMapClickOnCreate = (lat: number, lng: number) => {
-    const newStop: Stop = { name: `Arrêt ${ (newLine.stops?.length || 0) + 1}`, time: '12:00', lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)) };
+    const newStop: Stop = { id: generateId(), name: `Arrêt ${ (newLine.stops?.length || 0) + 1}`, time: '12:00', lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)) };
     setNewLine(prev => ({ ...prev, stops: [...(prev.stops || []), newStop] }));
   };
 
   const addStopManually = () => {
     const defaultLat = userLocation?.lat || 48.8566;
     const defaultLng = userLocation?.lng || 2.3522;
-    setNewLine(prev => ({ ...prev, stops: [...(prev.stops || []), { name: 'Nouvel arrêt', time: '12:00', lat: defaultLat, lng: defaultLng }] }));
+    setNewLine(prev => ({ ...prev, stops: [...(prev.stops || []), { id: generateId(), name: 'Nouvel arrêt', time: '12:00', lat: defaultLat, lng: defaultLng }] }));
+  };
+
+  const moveStop = (idx: number, direction: 'up' | 'down') => {
+    setNewLine(prev => {
+      const stops = [...(prev.stops || [])];
+      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (newIdx < 0 || newIdx >= stops.length) return prev;
+      [stops[idx], stops[newIdx]] = [stops[newIdx], stops[idx]];
+      return { ...prev, stops };
+    });
   };
 
   const updateStop = (idx: number, field: keyof Stop, value: string) => {
@@ -288,7 +311,7 @@ const App: React.FC = () => {
             <label className="flex-1 sm:flex-none p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 active:scale-90 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
               <FileUp size={16} />
               <span className="text-[10px] font-black uppercase tracking-tight">Import</span>
-              <input type="file" accept=".xml,text/xml,application/xml" onChange={handleImportXML} className="hidden" />
+              <input type="file" accept=".xml" onChange={handleImportXML} className="hidden" />
             </label>
             <button onClick={exportToXML} className="flex-1 sm:flex-none p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500 hover:text-emerald-600 active:scale-90 transition-all flex items-center justify-center gap-1.5">
               <FileDown size={16} />
@@ -302,7 +325,7 @@ const App: React.FC = () => {
             <AlertTriangle size={20} />
           </div>
           <p className="text-[11px] font-bold text-orange-900 leading-tight italic">
-            Cette application est une aide à la conduite, elle ne doit pas être manipulée lorsque le véhicule roule.
+            Cette application est une aide à la conduite.
           </p>
         </div>
         
@@ -338,10 +361,10 @@ const App: React.FC = () => {
     <div className="flex flex-col lg:flex-row h-full bg-white relative">
       <div className="h-[40vh] lg:h-full lg:w-1/2 relative shrink-0">
         <MapComponent stops={selectedLine.stops} focusLocation={mapFocus} satellite={isSatellite} height="100%" />
-        <div className="absolute top-4 left-4 flex gap-3 z-20">
+        <div className="absolute top-4 left-4 flex gap-3 z-20 safe-top">
           <button onClick={() => setView(AppView.HOME)} className="bg-white p-3 rounded-full shadow-xl active:scale-90 transition-transform"><ChevronLeft size={24} className="text-slate-800" /></button>
         </div>
-        <div className="absolute top-4 right-4 z-20">
+        <div className="absolute top-4 right-4 z-20 safe-top">
           <button 
             onClick={() => setIsSatellite(!isSatellite)} 
             className={`p-3 rounded-full shadow-xl transition-all active:scale-90 flex items-center gap-2 ${isSatellite ? 'bg-blue-600 text-white' : 'bg-white text-slate-800'}`}
@@ -365,7 +388,7 @@ const App: React.FC = () => {
           </div>
           <div className="space-y-8 relative before:absolute before:left-[11px] before:top-4 before:bottom-4 before:w-1 before:bg-slate-50">
             {selectedLine.stops.map((s, i) => (
-              <div key={i} className="flex items-start space-x-6 relative">
+              <div key={s.id || i} className="flex items-start space-x-6 relative">
                 <div className={`w-6 h-6 rounded-full border-[5px] bg-white z-10 flex items-center justify-center shrink-0 ${i === 0 ? 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : i === selectedLine!.stops.length - 1 ? 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]' : 'border-slate-100'}`}></div>
                 <div className="flex-1 flex justify-between items-center group cursor-pointer" onClick={() => setMapFocus({ lat: s.lat, lng: s.lng })}>
                   <div className="flex flex-col overflow-hidden">
@@ -396,7 +419,7 @@ const App: React.FC = () => {
         <div className="w-10"></div>
       </div>
       <div className="flex-1 overflow-y-auto lg:grid lg:grid-cols-2 lg:gap-0">
-        <div className="p-6 space-y-8">
+        <div className="p-6 space-y-8 pb-48">
           <div className="space-y-4">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Informations générales</p>
             <div className="grid grid-cols-4 gap-4">
@@ -405,19 +428,30 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="lg:hidden space-y-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Placement sur carte</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Placement sur carte (cliquez pour ajouter)</p>
             <div className="relative h-72 rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-sm"><MapComponent stops={(newLine.stops || []) as Stop[]} currentPos={newLine.stops?.length === 0 ? userLocation : null} height="100%" onMapClick={handleMapClickOnCreate} /></div>
           </div>
-          <div className="space-y-4 pb-32 lg:pb-0">
+          <div className="space-y-4">
             <div className="flex justify-between items-center px-1"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Séquence des stations</p><button onClick={addStopManually} className="text-xs text-blue-600 font-black uppercase flex items-center gap-1"><PlusCircle size={14} /> Ajouter</button></div>
             <div className="space-y-3">
               {newLine.stops?.map((stop, i) => (
-                <div key={i} className="bg-white p-4 rounded-3xl border-2 border-slate-100 flex flex-col gap-4 shadow-sm hover:border-blue-100 transition-colors">
+                <div key={stop.id || i} className="bg-white p-4 rounded-3xl border-2 border-slate-100 flex flex-col gap-4 shadow-sm hover:border-blue-100 transition-colors">
                   <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400 shrink-0">{i + 1}</div>
-                    <div className="flex-1"><input value={stop.name ?? ''} onChange={e => updateStop(i, 'name', e.target.value)} className="w-full font-bold text-slate-800 outline-none bg-transparent" placeholder="Nom de la station" /></div>
-                    <div className="flex items-center bg-slate-50 rounded-xl px-3 py-1.5 gap-2 shrink-0"><Clock size={12} className="text-slate-400" /><input type="time" value={stop.time ?? ''} onChange={e => updateStop(i, 'time', e.target.value)} className="bg-transparent text-[10px] font-bold text-slate-900 outline-none w-14" /></div>
-                    <button onClick={() => removeStop(i)} className="text-slate-300 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      {/* Boutons agrandis pour mobile avec active:scale pour retour tactile */}
+                      <button onClick={() => moveStop(i, 'up')} disabled={i === 0} className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-10 active:scale-90 transition-all shadow-sm">
+                        <ChevronUp size={20} />
+                      </button>
+                      <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-xs font-black text-white shrink-0 shadow-lg shadow-blue-100">{i + 1}</div>
+                      <button onClick={() => moveStop(i, 'down')} disabled={i === (newLine.stops?.length || 0) - 1} className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-10 active:scale-90 transition-all shadow-sm">
+                        <ChevronDown size={20} />
+                      </button>
+                    </div>
+                    <div className="flex-1 space-y-3 min-w-0">
+                      <input value={stop.name ?? ''} onChange={e => updateStop(i, 'name', e.target.value)} className="w-full font-bold text-slate-800 outline-none bg-slate-50/50 p-2 rounded-lg" placeholder="Nom de la station" />
+                      <div className="flex items-center bg-slate-50 rounded-xl px-3 py-1.5 gap-2"><Clock size={14} className="text-slate-400" /><input type="time" value={stop.time ?? ''} onChange={e => updateStop(i, 'time', e.target.value)} className="bg-transparent text-sm font-bold text-slate-900 outline-none w-full" /></div>
+                    </div>
+                    <button onClick={() => removeStop(i)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors active:scale-90"><Trash2 size={20} /></button>
                   </div>
                   <div className="flex gap-2 pt-2 border-t border-slate-50">
                     <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lat ?? ''} onChange={e => updateStop(i, 'lat', e.target.value)} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LAT" /></div>
@@ -501,7 +535,7 @@ const App: React.FC = () => {
 
   const renderManualSummary = () => {
     if (!lastManualReport) return null;
-    const stopsAsStops: Stop[] = lastManualReport.stops.map((s, i) => ({ name: `Arrêt ${i + 1}`, time: s.time, lat: s.lat, lng: s.lng }));
+    const stopsAsStops: Stop[] = lastManualReport.stops.map((s, i) => ({ id: generateId(), name: `Arrêt ${i + 1}`, time: s.time, lat: s.lat, lng: s.lng }));
     return (
       <div className="flex flex-col h-full bg-slate-950 text-white overflow-y-auto print:bg-white print:text-slate-900">
         <div className="p-8 space-y-8 pb-48 max-w-4xl mx-auto w-full">
@@ -592,7 +626,6 @@ const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
   const [boardedTotal, setBoardedTotal] = useState(0);
   const [droppedTotal, setDroppedTotal] = useState(0);
   const [stops, setStops] = useState<ManualStop[]>([]);
-  const [trace, setTrace] = useState<{ lat: number, lng: number }[]>([]);
   const [currentStopBoarded, setCurrentStopBoarded] = useState(0);
   const [currentStopDropped, setCurrentStopDropped] = useState(0);
 
@@ -600,17 +633,16 @@ const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
     if (!navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setCurrentPos(newPos);
-        if (isRunning) setTrace(prev => [...prev, newPos]);
+        setCurrentPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       (err) => console.error(err),
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [isRunning]);
+  }, []);
 
-  const handleStart = () => { setIsRunning(true); setStartTime(new Date()); setStops([]); setTrace([]); setBoardedTotal(0); setDroppedTotal(0); };
+  const handleStart = () => { setIsRunning(true); setStartTime(new Date()); setStops([]); setBoardedTotal(0); setDroppedTotal(0); };
+  
   const handleValidateStop = () => {
     if (!currentPos) return;
     const newStop: ManualStop = { id: stops.length + 1, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), lat: currentPos.lat, lng: currentPos.lng, boarded: currentStopBoarded, dropped: currentStopDropped };
@@ -625,10 +657,7 @@ const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
     if (!startTime) return;
     const endTime = new Date();
     const diff = Math.floor((endTime.getTime() - startTime.getTime()) / 60000);
-    const finalStops = currentStopBoarded > 0 || currentStopDropped > 0 
-      ? [...stops, { id: stops.length + 1, time: endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), lat: currentPos?.lat || 0, lng: currentPos?.lng || 0, boarded: currentStopBoarded, dropped: currentStopDropped }]
-      : stops;
-    onFinish({ startTime: startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), endTime: endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), duration: `${Math.floor(diff/60)}h ${diff%60}min`, totalBoarded: boardedTotal + currentStopBoarded, totalDropped: droppedTotal + currentStopDropped, stops: finalStops, trace });
+    onFinish({ startTime: startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), endTime: endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), duration: `${Math.floor(diff/60)}h ${diff%60}min`, totalBoarded: boardedTotal + currentStopBoarded, totalDropped: droppedTotal + currentStopDropped, stops: stops, trace: [] });
   };
 
   return (
@@ -641,22 +670,22 @@ const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
            </div>
            <button onClick={onExit} className="bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight active:scale-95 transition-all">Quitter</button>
         </div>
-        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]"><MapComponent stops={stops.map((s, i) => ({ name: `Pt ${i+1}`, time: s.time, lat: s.lat, lng: s.lng }))} currentPos={currentPos} dark isDriving height="100%" /></div>
+        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]"><MapComponent stops={stops.map((s, i) => ({ id: s.id.toString(), name: `Pt ${i+1}`, time: s.time, lat: s.lat, lng: s.lng }))} currentPos={currentPos} dark isDriving height="100%" /></div>
         <div className="grid grid-cols-2 gap-3 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
           <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2"><div className="bg-emerald-600/20 p-1.5 rounded-lg text-emerald-400"><UserPlus size={16} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Montées</span></div>
-            <div className="flex items-center justify-between"><button disabled={!isRunning} onClick={() => setCurrentStopBoarded(Math.max(0, currentStopBoarded - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center disabled:opacity-20"><Minus size={18} /></button><div className="text-2xl font-black italic text-emerald-400 tabular-nums">{currentStopBoarded}</div><button disabled={!isRunning} onClick={() => setCurrentStopBoarded(currentStopBoarded + 1)} className="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg shadow-emerald-500/20 flex items-center justify-center disabled:opacity-20"><Plus size={18} /></button></div>
+            <div className="flex items-center justify-between"><button disabled={!isRunning} onClick={() => setCurrentStopBoarded(Math.max(0, currentStopBoarded - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button><div className="text-2xl font-black italic text-emerald-400 tabular-nums">{currentStopBoarded}</div><button disabled={!isRunning} onClick={() => setCurrentStopBoarded(currentStopBoarded + 1)} className="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button></div>
           </div>
           <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2"><div className="bg-rose-600/20 p-1.5 rounded-lg text-rose-400"><UserMinus size={16} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Descentes</span></div>
-            <div className="flex items-center justify-between"><button disabled={!isRunning} onClick={() => setCurrentStopDropped(Math.max(0, currentStopDropped - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center disabled:opacity-20"><Minus size={18} /></button><div className="text-2xl font-black italic text-rose-400 tabular-nums">{currentStopDropped}</div><button disabled={!isRunning} onClick={() => setCurrentStopDropped(currentStopDropped + 1)} className="w-10 h-10 rounded-xl bg-rose-600 shadow-lg shadow-rose-500/20 flex items-center justify-center disabled:opacity-20"><Plus size={18} /></button></div>
+            <div className="flex items-center justify-between"><button disabled={!isRunning} onClick={() => setCurrentStopDropped(Math.max(0, currentStopDropped - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button><div className="text-2xl font-black italic text-rose-400 tabular-nums">{currentStopDropped}</div><button disabled={!isRunning} onClick={() => setCurrentStopDropped(currentStopDropped + 1)} className="w-10 h-10 rounded-xl bg-rose-600 shadow-lg flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button></div>
           </div>
         </div>
         <div className="h-[12%] sm:h-20 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
           {!isRunning ? (
             <button onClick={handleStart} className="w-full h-full bg-blue-600 border-b-[8px] border-blue-800 rounded-[32px] flex items-center justify-center gap-4 active:translate-y-1 shadow-2xl"><Play size={24} fill="currentColor" /><span className="text-xl font-black italic uppercase tracking-tight">Début de course</span></button>
           ) : (
-            <div className="flex gap-4 h-full"><button onClick={handleValidateStop} className="flex-[2] bg-emerald-600 border-b-[8px] border-emerald-800 rounded-[32px] flex flex-col items-center justify-center shadow-2xl"><CircleDot size={20} className="mb-1" /><span className="text-sm font-black italic uppercase tracking-tight">Valider Arrêt</span></button><button onClick={handleFinish} className="flex-1 bg-rose-600 border-b-[8px] border-rose-800 rounded-[32px] flex flex-col items-center justify-center shadow-2xl"><LogOut size={20} className="mb-1" /><span className="text-sm font-black italic uppercase tracking-tight">Fin</span></button></div>
+            <div className="flex gap-4 h-full"><button onClick={handleValidateStop} className="flex-[2] bg-emerald-600 border-b-[8px] border-emerald-800 rounded-[32px] flex flex-col items-center justify-center shadow-2xl active:scale-95"><CircleDot size={20} className="mb-1" /><span className="text-sm font-black italic uppercase tracking-tight">Valider Arrêt</span></button><button onClick={handleFinish} className="flex-1 bg-rose-600 border-b-[8px] border-rose-800 rounded-[32px] flex flex-col items-center justify-center shadow-2xl active:scale-95"><LogOut size={20} className="mb-1" /><span className="text-sm font-black italic uppercase tracking-tight">Fin</span></button></div>
           )}
         </div>
       </div>
@@ -669,6 +698,7 @@ interface PrepViewProps { line: BusLine; userLocation: { lat: number; lng: numbe
 const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArrived }) => {
   const [currentPos, setCurrentPos] = useState(userLocation);
   const firstStop = line.stops[0];
+  
   useEffect(() => {
     if (!navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition((pos) => {
@@ -678,6 +708,7 @@ const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArr
     }, (err) => console.error(err), { enableHighAccuracy: true });
     return () => navigator.geolocation.clearWatch(watchId);
   }, [firstStop, onArrived]);
+
   const stats = useMemo(() => {
     if (!currentPos) return null;
     const dist = getDistance(currentPos.lat, currentPos.lng, firstStop.lat, firstStop.lng);
@@ -687,6 +718,7 @@ const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArr
     const travelTime = Math.ceil(dist / 500);
     return { dist, status: (timeToStart - travelTime) < 0 ? 'late' : 'early', diff: Math.abs(timeToStart - travelTime) };
   }, [currentPos, firstStop]);
+
   return (
     <div className="fixed inset-0 bg-[#080b14] text-white z-[500] flex flex-col safe-top safe-bottom">
       <div className="flex-1 p-4 sm:p-6 space-y-4 flex flex-col overflow-hidden max-w-5xl mx-auto w-full">
@@ -785,16 +817,16 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
         <div className="grid grid-cols-2 gap-3 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
           <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2"><div className="bg-emerald-600/20 p-1.5 rounded-lg text-emerald-400"><UserPlus size={16} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Montées</span></div>
-            <div className="flex items-center justify-between"><button onClick={() => setCurrentBoarding(Math.max(0, currentBoarding - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center"><Minus size={18} /></button><div className="text-2xl font-black italic text-emerald-400 tabular-nums">{currentBoarding}</div><button onClick={() => setCurrentBoarding(currentBoarding + 1)} className="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg flex items-center justify-center"><Plus size={18} /></button></div>
+            <div className="flex items-center justify-between"><button onClick={() => setCurrentBoarding(Math.max(0, currentBoarding - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button><div className="text-2xl font-black italic text-emerald-400 tabular-nums">{currentBoarding}</div><button onClick={() => setCurrentBoarding(currentBoarding + 1)} className="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button></div>
           </div>
           <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2"><div className="bg-rose-600/20 p-1.5 rounded-lg text-rose-400"><UserMinus size={16} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Descentes</span></div>
-            <div className="flex items-center justify-between"><button onClick={() => setCurrentDropped(Math.max(0, currentDropped - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center"><Minus size={18} /></button><div className="text-2xl font-black italic text-rose-400 tabular-nums">{currentDropped}</div><button onClick={() => setCurrentDropped(currentDropped + 1)} className="w-10 h-10 rounded-xl bg-rose-600 shadow-lg flex items-center justify-center"><Plus size={18} /></button></div>
+            <div className="flex items-center justify-between"><button onClick={() => setCurrentDropped(Math.max(0, currentDropped - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button><div className="text-2xl font-black italic text-rose-400 tabular-nums">{currentDropped}</div><button onClick={() => setCurrentDropped(currentDropped + 1)} className="w-10 h-10 rounded-xl bg-rose-600 shadow-lg flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button></div>
           </div>
         </div>
         <div className="flex gap-4 h-[12%] sm:h-20 shrink-0 pb-2 sm:max-w-md sm:mx-auto sm:w-full">
-          <button onClick={() => setNextStopIdx(p => Math.max(0, p - 1))} className="flex-1 bg-white/5 rounded-[32px] flex items-center justify-center text-slate-600 border border-white/5"><ChevronLeft size={32} /></button>
-          <button onClick={handleNext} className={`flex-[3] border-b-[8px] rounded-[32px] flex items-center justify-center transition-all shadow-2xl ${nextStopIdx === line.stops.length - 1 ? 'bg-rose-600 border-rose-800' : 'bg-blue-600 border-blue-800'}`}>
+          <button onClick={() => setNextStopIdx(p => Math.max(0, p - 1))} className="flex-1 bg-white/5 rounded-[32px] flex items-center justify-center text-slate-600 border border-white/5 active:scale-90 transition-all"><ChevronLeft size={32} /></button>
+          <button onClick={handleNext} className={`flex-[3] border-b-[8px] rounded-[32px] flex items-center justify-center transition-all shadow-2xl active:scale-95 ${nextStopIdx === line.stops.length - 1 ? 'bg-rose-600 border-rose-800' : 'bg-blue-600 border-blue-800'}`}>
             <span className="text-xl font-black italic uppercase tracking-tight flex items-center gap-2">{nextStopIdx === line.stops.length - 1 ? 'Terminer' : (isAtStation ? 'Partir' : 'Valider Manuel')}</span>
           </button>
         </div>

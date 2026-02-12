@@ -1,5 +1,6 @@
 
 export interface Stop {
+  id?: string; // Ajouté pour la gestion stable des listes en React
   name: string;
   time: string;
   lat: number;
