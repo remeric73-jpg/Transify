@@ -39,9 +39,11 @@ import {
   FileText,
   RotateCcw,
   Navigation,
-  PlayCircle
+  PlayCircle,
+  Map as MapIcon,
+  CircleDot
 } from 'lucide-react';
-import { AppView, BusLine, Stop, CourseReport, StopReport } from './types';
+import { AppView, BusLine, Stop, CourseReport, StopReport, ManualStop, ManualReport } from './types';
 import { INITIAL_LINES } from './constants';
 import MapComponent from './components/MapComponent';
 
@@ -62,7 +64,6 @@ const STORAGE_KEY = 'geoligne_bus_lines';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.HOME);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [lines, setLines] = useState<BusLine[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -74,6 +75,7 @@ const App: React.FC = () => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [newLine, setNewLine] = useState<Partial<BusLine>>({ number: '', name: '', stops: [] });
   const [lastReport, setLastReport] = useState<CourseReport | null>(null);
+  const [lastManualReport, setLastManualReport] = useState<ManualReport | null>(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
@@ -201,6 +203,7 @@ const App: React.FC = () => {
   const removeStop = (idx: number) => { setNewLine(prev => ({ ...prev, stops: prev.stops?.filter((_, i) => i !== idx) })); };
 
   const handleCourseFinished = (report: CourseReport) => { setLastReport(report); setView(AppView.SUMMARY); };
+  const handleManualCourseFinished = (report: ManualReport) => { setLastManualReport(report); setView(AppView.MANUAL_SUMMARY); };
 
   const handleExportPDF = () => {
     window.print();
@@ -228,7 +231,16 @@ const App: React.FC = () => {
           </div>
         ))}
       </div>
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-slate-100 flex justify-center z-[100] pb-[env(safe-area-inset-bottom,24px)]"><button onClick={handleCreateLine} className="bg-slate-900 text-white px-8 py-4 rounded-3xl shadow-2xl font-bold flex items-center space-x-3 active:scale-95 transition-transform w-full max-w-md justify-center group"><PlusCircle size={22} className="group-hover:rotate-90 transition-transform" /><span className="text-base tracking-tight">Nouvelle ligne</span></button></div>
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-slate-100 flex gap-3 z-[100] pb-[env(safe-area-inset-bottom,24px)]">
+        <button onClick={() => setView(AppView.GEOMANUEL)} className="flex-1 bg-slate-800 text-white px-4 py-4 rounded-3xl shadow-lg font-bold flex items-center justify-center space-x-3 active:scale-95 transition-transform group border border-white/10">
+          <Navigation2 size={20} className="group-hover:rotate-12 transition-transform text-blue-400" />
+          <span className="text-sm tracking-tight italic uppercase font-black">GeoManuel</span>
+        </button>
+        <button onClick={handleCreateLine} className="flex-[1.5] bg-blue-600 text-white px-4 py-4 rounded-3xl shadow-2xl font-bold flex items-center justify-center space-x-3 active:scale-95 transition-transform group">
+          <PlusCircle size={22} className="group-hover:rotate-90 transition-transform" />
+          <span className="text-sm tracking-tight italic uppercase font-black">Nouvelle ligne</span>
+        </button>
+      </div>
     </div>
   );
 
@@ -313,6 +325,88 @@ const App: React.FC = () => {
     );
   }
 
+  const renderManualSummary = () => {
+    if (!lastManualReport) return null;
+    const stopsAsStops: Stop[] = lastManualReport.stops.map((s, i) => ({
+      name: `Arrêt ${i + 1}`,
+      time: s.time,
+      lat: s.lat,
+      lng: s.lng
+    }));
+
+    return (
+      <div className="flex flex-col h-full bg-slate-50 text-slate-900 overflow-y-auto">
+        <div className="p-8 space-y-8 pb-32">
+          <div className="flex justify-between items-center print:hidden">
+            <div className="bg-blue-600 p-3 rounded-2xl shadow-lg shadow-blue-200">
+              <CheckCircle2 size={32} className="text-white" />
+            </div>
+            <button onClick={() => setView(AppView.HOME)} className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest active:scale-95 transition-all">
+              <Home size={16} /> Retour Accueil
+            </button>
+          </div>
+          
+          <div className="space-y-2">
+            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none text-slate-900">Bilan GeoManuel</h2>
+            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">Traçage dynamique sans itinéraire pré-défini</p>
+          </div>
+
+          <div className="relative h-64 rounded-[40px] overflow-hidden border-2 border-slate-100 shadow-xl print:hidden">
+            <MapComponent stops={stopsAsStops} height="100%" />
+            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-blue-600 shadow-sm border border-slate-100">Parcours Relevé</div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 bg-white border border-slate-100 rounded-[32px] p-6 space-y-1 shadow-sm">
+              <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Temps de course total</div>
+              <div className="text-3xl font-black italic text-slate-800">{lastManualReport.duration}</div>
+            </div>
+            <div className="bg-emerald-50 border border-emerald-100 rounded-[32px] p-6 space-y-1 shadow-sm">
+              <div className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.2em]">Total PAX Montés</div>
+              <div className="text-3xl font-black italic text-emerald-700">{lastManualReport.totalBoarded}</div>
+            </div>
+            <div className="bg-rose-50 border border-rose-100 rounded-[32px] p-6 space-y-1 shadow-sm">
+              <div className="text-[9px] font-black text-rose-600 uppercase tracking-[0.2em]">Total PAX Descendus</div>
+              <div className="text-3xl font-black italic text-rose-700">{lastManualReport.totalDropped}</div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-100 rounded-[40px] overflow-hidden shadow-sm">
+            <div className="bg-slate-50 p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <MapPinCheck size={18} className="text-blue-600" />
+                <span className="text-xs font-black uppercase tracking-widest italic">Points d'immobilisation ({lastManualReport.stops.length})</span>
+              </div>
+            </div>
+            <div className="p-6 space-y-5">
+              {lastManualReport.stops.map((stop, i) => (
+                <div key={i} className="flex items-center justify-between border-b border-slate-50 pb-4 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black italic shadow-md shadow-slate-200">{i + 1}</div>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-black uppercase text-slate-400">Heure de validation</span>
+                      <span className="font-black italic text-xl text-slate-800 tracking-tight leading-none">{stop.time}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="bg-emerald-50 px-3 py-1 rounded-xl text-[10px] font-black text-emerald-600 border border-emerald-100">+{stop.boarded}</div>
+                    <div className="bg-rose-50 px-3 py-1 rounded-xl text-[10px] font-black text-rose-600 border border-rose-100">-{stop.dropped}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-slate-100 z-50 pb-[env(safe-area-inset-bottom,24px)] print:hidden">
+          <button onClick={handleExportPDF} className="w-full bg-emerald-600 text-white p-5 rounded-[32px] font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight italic">
+            <FileText size={22} />
+            <span>Exporter le rapport GeoManuel</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderCreate = () => (
     <div className="flex flex-col h-full bg-slate-50">
       <div className="bg-white px-6 py-6 border-b border-slate-100 flex items-center justify-between sticky top-0 z-50"><button onClick={() => setView(AppView.HOME)} className="p-2 hover:bg-slate-50 rounded-full transition-colors flex items-center gap-2 group"><ArrowLeft size={24} className="group-hover:-translate-x-1 transition-transform" /><span className="text-xs font-bold uppercase tracking-tight text-slate-400 hidden sm:block">Retour</span></button><h2 className="text-xl font-black tracking-tight uppercase italic text-slate-900">Ajout d'itinéraire</h2><div className="w-10"></div></div>
@@ -327,7 +421,7 @@ const App: React.FC = () => {
 
   return (
     <div className="h-[100dvh] w-full max-w-lg mx-auto overflow-hidden shadow-2xl relative bg-slate-50 text-slate-900 flex flex-col">
-      {view !== AppView.SUMMARY && view !== AppView.DRIVING && view !== AppView.PREP && (
+      {view !== AppView.SUMMARY && view !== AppView.DRIVING && view !== AppView.PREP && view !== AppView.GEOMANUEL && view !== AppView.MANUAL_SUMMARY && (
         <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0 print:hidden">
           <div className="flex items-center gap-3"><div className="bg-white/20 p-2 rounded-xl"><Bus size={22} /></div><h1 className="text-xl font-black uppercase italic tracking-tighter">GEOligne</h1></div>
           <div className="flex items-center gap-2 text-sm font-mono font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 shrink-0 tabular-nums"><Clock size={16} className="text-blue-200" /> {currentTime}</div>
@@ -340,6 +434,177 @@ const App: React.FC = () => {
         {view === AppView.PREP && selectedLine && (<PrepView line={selectedLine} userLocation={userLocation} onCancel={() => setView(AppView.DETAIL)} onArrived={() => setView(AppView.DRIVING)} />)}
         {view === AppView.DRIVING && selectedLine && (<DrivingView line={selectedLine} onExit={() => setView(AppView.DETAIL)} onFinish={handleCourseFinished} onStop={() => { setSelectedLine(null); setView(AppView.HOME); }} />)}
         {view === AppView.SUMMARY && renderSummary()}
+        {view === AppView.GEOMANUEL && <GeoManuelView onExit={() => setView(AppView.HOME)} onFinish={handleManualCourseFinished} />}
+        {view === AppView.MANUAL_SUMMARY && renderManualSummary()}
+      </div>
+    </div>
+  );
+};
+
+// --- Sub-component: GeoManuelView ---
+interface GeoManuelViewProps {
+  onExit: () => void;
+  onFinish: (report: ManualReport) => void;
+}
+
+const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
+  const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [boardedTotal, setBoardedTotal] = useState(0);
+  const [droppedTotal, setDroppedTotal] = useState(0);
+  const [stops, setStops] = useState<ManualStop[]>([]);
+  const [trace, setTrace] = useState<{ lat: number, lng: number }[]>([]);
+
+  // Pour les compteurs "en cours" à l'arrêt actuel
+  const [currentStopBoarded, setCurrentStopBoarded] = useState(0);
+  const [currentStopDropped, setCurrentStopDropped] = useState(0);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setCurrentPos(newPos);
+        if (isRunning) {
+          setTrace(prev => [...prev, newPos]);
+        }
+      },
+      (err) => console.error(err),
+      // Removed non-existent distanceFilter property
+      { enableHighAccuracy: true }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [isRunning]);
+
+  const handleStart = () => {
+    setIsRunning(true);
+    setStartTime(new Date());
+    setStops([]);
+    setTrace([]);
+    setBoardedTotal(0);
+    setDroppedTotal(0);
+  };
+
+  const handleValidateStop = () => {
+    if (!currentPos) return;
+    const newStop: ManualStop = {
+      id: stops.length + 1,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      lat: currentPos.lat,
+      lng: currentPos.lng,
+      boarded: currentStopBoarded,
+      dropped: currentStopDropped
+    };
+    setStops(prev => [...prev, newStop]);
+    setBoardedTotal(prev => prev + currentStopBoarded);
+    setDroppedTotal(prev => prev + currentStopDropped);
+    setCurrentStopBoarded(0);
+    setCurrentStopDropped(0);
+  };
+
+  const handleFinish = () => {
+    if (!startTime) return;
+    const endTime = new Date();
+    const diff = Math.floor((endTime.getTime() - startTime.getTime()) / 60000);
+    
+    // On valide automatiquement les derniers passagers s'il y en a
+    const finalStops = currentStopBoarded > 0 || currentStopDropped > 0 
+      ? [...stops, {
+          id: stops.length + 1,
+          time: endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          lat: currentPos?.lat || 0,
+          lng: currentPos?.lng || 0,
+          boarded: currentStopBoarded,
+          dropped: currentStopDropped
+        }]
+      : stops;
+
+    onFinish({
+      startTime: startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      endTime: endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      duration: `${Math.floor(diff/60)}h ${diff%60}min`,
+      totalBoarded: boardedTotal + currentStopBoarded,
+      totalDropped: droppedTotal + currentStopDropped,
+      stops: finalStops,
+      trace
+    });
+  };
+
+  // Convert ManualStops to standard Stops for display on MapComponent
+  const mapStops: Stop[] = stops.map((s, i) => ({
+    name: `Arrêt ${i+1}`,
+    time: s.time,
+    lat: s.lat,
+    lng: s.lng
+  }));
+
+  return (
+    <div className="fixed inset-0 bg-[#080b14] text-white flex flex-col z-[500] safe-top safe-bottom">
+      <div className="flex-1 flex flex-col p-6 gap-4 overflow-hidden relative">
+        {/* Header */}
+        <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-3xl p-4">
+           <div className="flex items-center gap-3">
+             <div className="bg-slate-800 p-2 rounded-xl text-blue-400"><MapIcon size={20} /></div>
+             <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Traçage Manuel</span>
+                <span className="text-lg font-black italic uppercase">{isRunning ? "En cours..." : "En attente"}</span>
+             </div>
+           </div>
+           <button onClick={onExit} className="bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight active:scale-95 transition-all">Quitter</button>
+        </div>
+
+        {/* Map */}
+        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]">
+          <MapComponent stops={mapStops} currentPos={currentPos} dark isDriving height="100%" />
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-3 shrink-0">
+          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-emerald-600/20 p-1.5 rounded-lg text-emerald-400"><UserPlus size={16} /></div>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Montées</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <button disabled={!isRunning} onClick={() => setCurrentStopBoarded(Math.max(0, currentStopBoarded - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-20"><Minus size={18} /></button>
+              <div className="text-2xl font-black italic text-emerald-400 tabular-nums">{currentStopBoarded}</div>
+              <button disabled={!isRunning} onClick={() => setCurrentStopBoarded(currentStopBoarded + 1)} className="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg shadow-emerald-500/20 flex items-center justify-center active:scale-90 transition-all disabled:opacity-20"><Plus size={18} /></button>
+            </div>
+          </div>
+          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-rose-600/20 p-1.5 rounded-lg text-rose-400"><UserMinus size={16} /></div>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Descentes</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <button disabled={!isRunning} onClick={() => setCurrentStopDropped(Math.max(0, currentStopDropped - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-20"><Minus size={18} /></button>
+              <div className="text-2xl font-black italic text-rose-400 tabular-nums">{currentStopDropped}</div>
+              <button disabled={!isRunning} onClick={() => setCurrentStopDropped(currentStopDropped + 1)} className="w-10 h-10 rounded-xl bg-rose-600 shadow-lg shadow-rose-500/20 flex items-center justify-center active:scale-90 transition-all disabled:opacity-20"><Plus size={18} /></button>
+            </div>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="h-[14%] shrink-0">
+          {!isRunning ? (
+            <button onClick={handleStart} className="w-full h-full bg-blue-600 border-b-[8px] border-blue-800 rounded-[32px] flex items-center justify-center gap-4 active:translate-y-1 active:border-b-2 transition-all shadow-2xl">
+               <Play size={24} fill="currentColor" />
+               <span className="text-xl font-black italic uppercase tracking-tight">Début de course</span>
+            </button>
+          ) : (
+            <div className="flex gap-4 h-full">
+              <button onClick={handleValidateStop} className="flex-[2] bg-emerald-600 border-b-[8px] border-emerald-800 rounded-[32px] flex flex-col items-center justify-center active:translate-y-1 active:border-b-2 transition-all shadow-2xl">
+                 <CircleDot size={20} className="mb-1" />
+                 <span className="text-sm font-black italic uppercase tracking-tight">Valider Arrêt</span>
+              </button>
+              <button onClick={handleFinish} className="flex-1 bg-rose-600 border-b-[8px] border-rose-800 rounded-[32px] flex flex-col items-center justify-center active:translate-y-1 active:border-b-2 transition-all shadow-2xl">
+                 <LogOut size={20} className="mb-1" />
+                 <span className="text-sm font-black italic uppercase tracking-tight">Fin</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

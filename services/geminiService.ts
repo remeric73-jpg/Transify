@@ -2,9 +2,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Stop } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const optimizeRoute = async (prompt: string): Promise<Partial<Stop>[]> => {
+  // Always instantiate inside the call to ensure up-to-date API key usage
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `Génère une liste de 4 arrêts de bus logiques basés sur cette demande : "${prompt}". 

@@ -32,11 +32,32 @@ export interface CourseReport {
   stops: StopReport[];
 }
 
+export interface ManualStop {
+  id: number;
+  time: string;
+  lat: number;
+  lng: number;
+  boarded: number;
+  dropped: number;
+}
+
+export interface ManualReport {
+  startTime: string;
+  endTime: string;
+  duration: string;
+  totalBoarded: number;
+  totalDropped: number;
+  stops: ManualStop[];
+  trace: { lat: number, lng: number }[];
+}
+
 export enum AppView {
   HOME = 'home',
   DETAIL = 'detail',
   PREP = 'prep',
   DRIVING = 'driving',
   CREATE = 'create',
-  SUMMARY = 'summary'
+  SUMMARY = 'summary',
+  GEOMANUEL = 'geomanuel',
+  MANUAL_SUMMARY = 'manual_summary'
 }
