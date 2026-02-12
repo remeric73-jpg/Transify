@@ -41,7 +41,8 @@ import {
   Navigation,
   PlayCircle,
   Map as MapIcon,
-  CircleDot
+  CircleDot,
+  Pencil
 } from 'lucide-react';
 import { AppView, BusLine, Stop, CourseReport, StopReport, ManualStop, ManualReport } from './types';
 import { INITIAL_LINES } from './constants';
@@ -170,12 +171,32 @@ const App: React.FC = () => {
   };
 
   const handleCreateLine = () => { setNewLine({ number: '', name: '', stops: [] }); setView(AppView.CREATE); };
+  
+  const handleEditLine = (e: React.MouseEvent, line: BusLine) => {
+    e.stopPropagation();
+    setNewLine(line);
+    setView(AppView.CREATE);
+  };
+
   const saveLine = () => {
     if (!newLine.number || !newLine.name || !newLine.stops?.length) return;
-    const lineToAdd: BusLine = { id: Math.random().toString(36).substr(2, 9), number: newLine.number!, name: newLine.name!, stops: newLine.stops as Stop[] };
-    setLines(prev => [...prev, lineToAdd]);
+    
+    if (newLine.id) {
+      // Mode Édition
+      setLines(prev => prev.map(l => l.id === newLine.id ? (newLine as BusLine) : l));
+    } else {
+      // Mode Création
+      const lineToAdd: BusLine = { 
+        id: Math.random().toString(36).substr(2, 9), 
+        number: newLine.number!, 
+        name: newLine.name!, 
+        stops: newLine.stops as Stop[] 
+      };
+      setLines(prev => [...prev, lineToAdd]);
+    }
     setView(AppView.HOME);
   };
+
   const deleteLine = (e: React.MouseEvent, id: string) => { e.stopPropagation(); if (window.confirm("Voulez-vous vraiment supprimer cet itinéraire ?")) setLines(prev => prev.filter(l => l.id !== id)); };
 
   const handleMapClickOnCreate = (lat: number, lng: number) => {
@@ -227,7 +248,10 @@ const App: React.FC = () => {
           <div key={line.id} onClick={() => handleSelectLine(line)} className="bg-white p-4 rounded-3xl shadow-sm flex items-center space-x-4 active:scale-[0.98] transition-transform cursor-pointer border border-slate-100 hover:shadow-md group">
             <div className="bg-blue-600 text-white w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-black shrink-0 shadow-lg shadow-blue-200"><span className="text-[8px] opacity-70 leading-none">LIGNE</span><span className="text-xl leading-none">{line.number}</span></div>
             <div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 truncate text-base tracking-tight">{line.name}</h3><div className="flex items-center gap-2 mt-1"><span className="text-xs text-slate-400 flex items-center gap-1"><MapPin size={12} /> {line.stops.length} arrêts</span></div></div>
-            <button onClick={(e) => deleteLine(e, line.id)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 hover:bg-rose-50 hover:text-rose-500 transition-colors"><Trash2 size={18} /></button>
+            <div className="flex items-center gap-2">
+              <button onClick={(e) => handleEditLine(e, line)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 hover:bg-blue-50 hover:text-blue-500 transition-colors"><Pencil size={18} /></button>
+              <button onClick={(e) => deleteLine(e, line.id)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 hover:bg-rose-50 hover:text-rose-500 transition-colors"><Trash2 size={18} /></button>
+            </div>
           </div>
         ))}
       </div>
@@ -409,7 +433,7 @@ const App: React.FC = () => {
 
   const renderCreate = () => (
     <div className="flex flex-col h-full bg-slate-50">
-      <div className="bg-white px-6 py-6 border-b border-slate-100 flex items-center justify-between sticky top-0 z-50"><button onClick={() => setView(AppView.HOME)} className="p-2 hover:bg-slate-50 rounded-full transition-colors flex items-center gap-2 group"><ArrowLeft size={24} className="group-hover:-translate-x-1 transition-transform" /><span className="text-xs font-bold uppercase tracking-tight text-slate-400 hidden sm:block">Retour</span></button><h2 className="text-xl font-black tracking-tight uppercase italic text-slate-900">Ajout d'itinéraire</h2><div className="w-10"></div></div>
+      <div className="bg-white px-6 py-6 border-b border-slate-100 flex items-center justify-between sticky top-0 z-50"><button onClick={() => setView(AppView.HOME)} className="p-2 hover:bg-slate-50 rounded-full transition-colors flex items-center gap-2 group"><ArrowLeft size={24} className="group-hover:-translate-x-1 transition-transform" /><span className="text-xs font-bold uppercase tracking-tight text-slate-400 hidden sm:block">Retour</span></button><h2 className="text-xl font-black tracking-tight uppercase italic text-slate-900">{newLine.id ? "Modification" : "Ajout"} d'itinéraire</h2><div className="w-10"></div></div>
       <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32">
         <div className="space-y-4"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Informations générales</p><div className="grid grid-cols-4 gap-4"><input placeholder="NO." value={newLine.number ?? ''} onChange={e => setNewLine(prev => ({...prev, number: e.target.value}))} className="bg-white border-2 border-slate-100 p-4 rounded-2xl font-black text-center focus:border-blue-500 outline-none shadow-sm" /><input placeholder="Nom de la destination..." value={newLine.name ?? ''} onChange={e => setNewLine(prev => ({...prev, name: e.target.value}))} className="col-span-3 bg-white border-2 border-slate-100 p-4 rounded-2xl font-bold focus:border-blue-500 outline-none shadow-sm" /></div></div>
         <div className="space-y-4"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Placement sur carte</p><div className="relative h-72 rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-sm group"><MapComponent stops={(newLine.stops || []) as Stop[]} currentPos={newLine.stops?.length === 0 ? userLocation : null} height="100%" onMapClick={handleMapClickOnCreate} /><div className="absolute top-4 left-4 right-4 bg-white/90 backdrop-blur-md p-3 rounded-2xl text-[10px] font-black text-slate-500 uppercase tracking-widest shadow-lg border border-slate-100 text-center pointer-events-none group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">Cliquez sur la carte pour ajouter un arrêt</div></div></div>
@@ -874,6 +898,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
               <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Montées</span>
             </div>
             <div className="flex items-center justify-between">
+              {/* Corrected state setter and variable names below */}
               <button onClick={() => setCurrentBoarding(Math.max(0, currentBoarding - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button>
               <div className="text-2xl font-black italic text-emerald-400 tabular-nums">{currentBoarding}</div>
               <button onClick={() => setCurrentBoarding(currentBoarding + 1)} className="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg shadow-emerald-500/20 flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button>
@@ -885,6 +910,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
               <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Descentes</span>
             </div>
             <div className="flex items-center justify-between">
+              {/* Corrected state setter and variable names below */}
               <button onClick={() => setCurrentDropped(Math.max(0, currentDropped - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button>
               <div className="text-2xl font-black italic text-rose-400 tabular-nums">{currentDropped}</div>
               <button onClick={() => setCurrentDropped(currentDropped + 1)} className="w-10 h-10 rounded-xl bg-rose-600 shadow-lg shadow-rose-500/20 flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button>
