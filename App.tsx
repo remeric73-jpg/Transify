@@ -81,6 +81,7 @@ const App: React.FC = () => {
   const [selectedLine, setSelectedLine] = useState<BusLine | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userHeading, setUserHeading] = useState<number | null>(null);
   const [newLine, setNewLine] = useState<Partial<BusLine>>({ number: '', name: '', stops: [] });
   const [lastReport, setLastReport] = useState<CourseReport | null>(null);
   const [lastManualReport, setLastManualReport] = useState<ManualReport | null>(null);
@@ -138,7 +139,12 @@ const App: React.FC = () => {
     }, 1000);
     if (navigator.geolocation) {
       const watchId = navigator.geolocation.watchPosition(
-        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos) => {
+          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          if (pos.coords.heading !== null) {
+            setUserHeading(pos.coords.heading);
+          }
+        },
         (err) => console.error("Geolocation error:", err),
         { enableHighAccuracy: true }
       );
@@ -623,7 +629,7 @@ const App: React.FC = () => {
         {view === AppView.DETAIL && renderDetail()}
         {view === AppView.CREATE && renderCreate()}
         {view === AppView.PREP && selectedLine && (<PrepView line={selectedLine} userLocation={userLocation} onCancel={() => setView(AppView.DETAIL)} onArrived={() => setView(AppView.DRIVING)} />)}
-        {view === AppView.DRIVING && selectedLine && (<DrivingView line={selectedLine} onExit={() => setView(AppView.DETAIL)} onFinish={handleCourseFinished} onStop={() => { setSelectedLine(null); setView(AppView.HOME); }} />)}
+        {view === AppView.DRIVING && selectedLine && (<DrivingView line={selectedLine} onExit={() => setView(AppView.DETAIL)} onFinish={handleCourseFinished} onStop={() => { setSelectedLine(null); setView(AppView.HOME); }} initialHeading={userHeading} />)}
         {view === AppView.SUMMARY && renderSummary()}
         {view === AppView.GEOMANUEL && <GeoManuelView onExit={() => setView(AppView.HOME)} onFinish={handleManualCourseFinished} />}
         {view === AppView.MANUAL_SUMMARY && renderManualSummary()}
@@ -636,6 +642,7 @@ const App: React.FC = () => {
 interface GeoManuelViewProps { onExit: () => void; onFinish: (report: ManualReport) => void; }
 const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
   const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [currentHeading, setCurrentHeading] = useState<number | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [boardedTotal, setBoardedTotal] = useState(0);
@@ -649,6 +656,7 @@ const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         setCurrentPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        if (pos.coords.heading !== null) setCurrentHeading(pos.coords.heading);
       },
       (err) => console.error(err),
       { enableHighAccuracy: true }
@@ -685,7 +693,9 @@ const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
            </div>
            <button onClick={onExit} className="bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight active:scale-95 transition-all">Quitter</button>
         </div>
-        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]"><MapComponent stops={stops.map((s, i) => ({ id: s.id.toString(), name: `Pt ${i+1}`, time: s.time, lat: s.lat, lng: s.lng }))} currentPos={currentPos} dark isDriving height="100%" /></div>
+        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]">
+          <MapComponent stops={stops.map((s, i) => ({ id: s.id.toString(), name: `Pt ${i+1}`, time: s.time, lat: s.lat, lng: s.lng }))} currentPos={currentPos} heading={currentHeading} dark isDriving height="100%" />
+        </div>
         <div className="grid grid-cols-2 gap-3 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
           <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2"><div className="bg-emerald-600/20 p-1.5 rounded-lg text-emerald-400"><UserPlus size={16} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Montées</span></div>
@@ -712,6 +722,7 @@ const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
 interface PrepViewProps { line: BusLine; userLocation: { lat: number; lng: number } | null; onCancel: () => void; onArrived: () => void; }
 const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArrived }) => {
   const [currentPos, setCurrentPos] = useState(userLocation);
+  const [currentHeading, setCurrentHeading] = useState<number | null>(null);
   const firstStop = line.stops[0];
   
   useEffect(() => {
@@ -719,6 +730,7 @@ const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArr
     const watchId = navigator.geolocation.watchPosition((pos) => {
       const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       setCurrentPos(newPos);
+      if (pos.coords.heading !== null) setCurrentHeading(pos.coords.heading);
       if (getDistance(newPos.lat, newPos.lng, firstStop.lat, firstStop.lng) <= 50) onArrived();
     }, (err) => console.error(err), { enableHighAccuracy: true });
     return () => navigator.geolocation.clearWatch(watchId);
@@ -741,7 +753,9 @@ const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArr
            <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl"><Navigation size={20} className="animate-pulse" /></div><div className="flex flex-col"><div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Approche</span></div><span className="text-lg font-black italic uppercase truncate w-32 leading-none mt-1">{firstStop.name}</span></div></div>
            <button onClick={onCancel} className="bg-rose-600/20 text-rose-500 px-4 py-2 rounded-xl text-xs font-black uppercase active:scale-95 transition-all">Annuler</button>
         </div>
-        <div className="flex-1 rounded-[48px] overflow-hidden border border-white/10 relative"><MapComponent stops={[firstStop]} currentPos={currentPos} dark isDriving height="100%" /></div>
+        <div className="flex-1 rounded-[48px] overflow-hidden border border-white/10 relative">
+          <MapComponent stops={[firstStop]} currentPos={currentPos} heading={currentHeading} dark isDriving height="100%" />
+        </div>
         <div className="grid grid-cols-2 gap-3 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
           <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-5 space-y-1"><span className="text-[8px] font-black uppercase text-slate-500">Distance</span><div className="text-2xl font-black italic">{stats ? (stats.dist < 1000 ? `${Math.round(stats.dist)}m` : `${(stats.dist/1000).toFixed(1)}km`) : '--'}</div></div>
           <div className={`border rounded-[32px] p-5 space-y-1 ${stats?.status === 'late' ? 'bg-rose-950/20 border-rose-500/30' : 'bg-emerald-950/20 border-emerald-500/30'}`}><span className={`text-[8px] font-black uppercase ${stats?.status === 'late' ? 'text-rose-400' : 'text-emerald-400'}`}>{stats?.status === 'late' ? 'Retard' : 'Marge'}</span><div className={`text-2xl font-black italic ${stats?.status === 'late' ? 'text-rose-500' : 'text-emerald-500'}`}>{stats ? `${stats.diff} min` : '--'}</div></div>
@@ -756,9 +770,10 @@ const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArr
 };
 
 // --- Sub-component: Driving View ---
-interface DrivingViewProps { line: BusLine; onExit: () => void; onStop: () => void; onFinish: (report: CourseReport) => void; }
-const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinish }) => {
+interface DrivingViewProps { line: BusLine; onExit: () => void; onStop: () => void; onFinish: (report: CourseReport) => void; initialHeading: number | null; }
+const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinish, initialHeading }) => {
   const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [currentHeading, setCurrentHeading] = useState<number | null>(initialHeading);
   const [nextStopIdx, setNextStopIdx] = useState(0);
   const [now, setNow] = useState(new Date());
   const [actualArrivalTimes, setActualArrivalTimes] = useState<string[]>([]);
@@ -773,7 +788,10 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000);
     if (navigator.geolocation) {
-      const watchId = navigator.geolocation.watchPosition((pos) => setCurrentPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }), (err) => console.error(err), { enableHighAccuracy: true });
+      const watchId = navigator.geolocation.watchPosition((pos) => {
+        setCurrentPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        if (pos.coords.heading !== null) setCurrentHeading(pos.coords.heading);
+      }, (err) => console.error(err), { enableHighAccuracy: true });
       return () => { navigator.geolocation.clearWatch(watchId); clearInterval(interval); };
     }
     return () => clearInterval(interval);
@@ -824,7 +842,9 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
           <div className="flex-[0.6] rounded-3xl p-4 flex flex-col justify-center bg-[#10162a] border border-white/5"><div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Flag size={12} /> Distance</div><span className="text-xl font-black italic tracking-tighter leading-none">{distanceRemaining === null ? '--' : (distanceRemaining < 1000 ? `${Math.round(distanceRemaining)} m` : `${(distanceRemaining / 1000).toFixed(1)} km`)}</span></div>
           <button onClick={() => window.confirm("Annuler le service ?") && onExit()} className="flex-[0.4] rounded-3xl p-4 flex flex-col items-center justify-center bg-white/5 border border-white/10 shrink-0"><RotateCcw size={18} className="text-slate-400" /><span className="text-[7px] font-black uppercase mt-1 text-slate-500">Annuler</span></button>
         </div>
-        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]"><MapComponent stops={line.stops} currentPos={currentPos} dark isDriving height="100%" /></div>
+        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]">
+          <MapComponent stops={line.stops} currentPos={currentPos} heading={currentHeading} dark isDriving height="100%" />
+        </div>
         <div className={`transition-all rounded-[40px] p-5 flex items-center justify-between shadow-2xl shrink-0 ${isAtStation ? 'bg-emerald-900/40 border-emerald-500 border' : 'bg-[#10162a] border-white/10 border'}`}>
           <div className="flex gap-4 items-center min-w-0"><div className="w-14 h-14 rounded-[20px] flex flex-col items-center justify-center font-black shrink-0 border-b-8 bg-blue-600 border-blue-800 text-white italic"><span className="text-2xl leading-none">{line.number}</span></div><div className="flex flex-col min-w-0"><div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 ${isAtStation ? 'text-emerald-400' : 'text-blue-500'}`}>{isAtStation ? 'Arrêt en cours' : 'Prochain arrêt'}</div><h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none truncate">{currentStop?.name}</h2></div></div>
           <div className="text-3xl font-black italic text-slate-200 tabular-nums">{currentStop?.time}</div>

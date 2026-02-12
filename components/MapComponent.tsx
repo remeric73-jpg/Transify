@@ -1,11 +1,12 @@
 
 import React, { useRef, useEffect, useState, useMemo, memo } from 'react';
-import { WifiOff } from 'lucide-react';
+import { WifiOff, Navigation } from 'lucide-react';
 import { Stop } from '../types';
 
 interface MapComponentProps {
   stops: Stop[];
   currentPos?: { lat: number; lng: number } | null;
+  heading?: number | null;
   focusLocation?: { lat: number; lng: number } | null;
   height?: string;
   onMapClick?: (lat: number, lng: number) => void;
@@ -20,6 +21,7 @@ const routeCache = new Map<string, any>();
 const MapComponent: React.FC<MapComponentProps> = memo(({ 
   stops, 
   currentPos, 
+  heading = 0,
   focusLocation,
   height = "200px", 
   onMapClick, 
@@ -32,6 +34,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
   const markersLayerRef = useRef<any>(null);
   const busMarkerRef = useRef<any>(null);
   const [loadError, setLoadError] = useState(false);
+  const [followUser, setFollowUser] = useState(true);
   const containerId = useMemo(() => "map-container-" + Math.random().toString(36).substring(2, 9), []);
 
   // Fonction pour récupérer le tracé réel suivant les routes
@@ -84,18 +87,18 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     const mapInstance = L.map(containerId, { 
       zoomControl: false, 
       attributionControl: false,
-      dragging: !isDriving,
-      touchZoom: !isDriving,
-      scrollWheelZoom: !isDriving,
-      doubleClickZoom: !isDriving,
-      tap: true // Optimisation pour les navigateurs mobiles
+      dragging: true,
+      touchZoom: true,
+      scrollWheelZoom: true,
+      doubleClickZoom: true,
+      tap: true
     });
 
     const initialCenter: [number, number] = currentPos 
       ? [currentPos.lat, currentPos.lng] 
       : (stops && stops.length > 0) ? [stops[0].lat, stops[0].lng] : [48.8566, 2.3522];
     
-    mapInstance.setView(initialCenter, 15);
+    mapInstance.setView(initialCenter, isDriving ? 17 : 15);
     mapRef.current = mapInstance;
 
     let tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -118,6 +121,12 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
       mapInstance.on('click', (e: any) => onMapClick(e.latlng.lat, e.latlng.lng));
     }
 
+    // Détecter quand l'utilisateur déplace la carte manuellement pour désactiver le suivi
+    mapInstance.on('movestart', (e: any) => {
+      if (e.hard) return; // Ignore les déplacements programmés
+      if (isDriving) setFollowUser(false);
+    });
+
     const resizeObserver = new ResizeObserver(() => {
       mapInstance.invalidateSize();
     });
@@ -130,7 +139,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     };
   }, [containerId, dark, satellite, isDriving]);
 
-  // Effet pour gérer le focusLocation (recentrage dynamique)
+  // Effet pour gérer le focusLocation
   useEffect(() => {
     const map = mapRef.current;
     if (map && focusLocation) {
@@ -184,6 +193,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
               color: ${isFirst || isLast ? '#fff' : color};
               font-size: 10px;
               font-weight: 900;
+              transform: rotate(${isDriving ? (heading || 0) : 0}deg);
             ">${isFirst ? 'A' : isLast ? 'B' : ''}</div>`,
           iconSize: [20, 20],
           iconAnchor: [10, 10]
@@ -199,8 +209,9 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     };
 
     updateMapUI();
-  }, [stops, dark, satellite, isDriving]);
+  }, [stops, dark, satellite, isDriving, heading]);
 
+  // Gestion de la position du bus en temps réel (Navigation)
   useEffect(() => {
     const map = mapRef.current;
     const L = (window as any).L;
@@ -222,6 +233,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
             display:flex; 
             align-items:center; 
             justify-content:center;
+            transform: rotate(${isDriving ? (heading || 0) : 0}deg);
           ">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
               <path d="M4 16c0 1.1.9 2 2 2h1v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h6v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v8zM6 8h12v4H6V8z"/>
@@ -236,10 +248,25 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
       }).addTo(map);
     }
 
-    if (isDriving) {
-      map.panTo([currentPos.lat, currentPos.lng], { animate: true });
+    if (isDriving && followUser) {
+      map.setView([currentPos.lat, currentPos.lng], 17, { animate: true });
     }
-  }, [currentPos, isDriving]);
+  }, [currentPos, isDriving, followUser, heading]);
+
+  // Orientation de la carte (Rotation CSS)
+  useEffect(() => {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    if (isDriving && heading !== null) {
+      // On applique la rotation inverse au conteneur de la carte pour simuler l'orientation "Ahead Up"
+      // On scale pour éviter les bords blancs lors de la rotation
+      container.style.transition = 'transform 0.5s ease-out';
+      container.style.transform = `rotate(${-heading}deg) scale(1.6)`;
+    } else {
+      container.style.transform = `rotate(0deg) scale(1)`;
+    }
+  }, [isDriving, heading, containerId]);
 
   if (loadError) {
     return (
@@ -252,7 +279,21 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
 
   return (
     <div className={`overflow-hidden w-full h-full relative ${satellite ? 'bg-[#1a1c21]' : (dark ? 'bg-[#080b14]' : 'bg-slate-100')}`} style={{ zIndex: 1, height }}>
-      <div id={containerId} style={{ height: '100%', width: '100%' }} />
+      {/* Wrapper pour masquer les débords de rotation */}
+      <div className="w-full h-full overflow-hidden absolute inset-0">
+        <div id={containerId} style={{ height: '100%', width: '100%' }} />
+      </div>
+      
+      {/* Bouton de recentrage en mode navigation */}
+      {isDriving && !followUser && (
+        <button 
+          onClick={() => setFollowUser(true)}
+          className="absolute bottom-6 right-6 z-[1000] bg-blue-600 text-white p-4 rounded-full shadow-2xl active:scale-90 transition-transform flex items-center gap-2 border-2 border-white"
+        >
+          <Navigation size={20} className="rotate-45" />
+          <span className="text-xs font-black uppercase italic">Recentrer</span>
+        </button>
+      )}
     </div>
   );
 });
