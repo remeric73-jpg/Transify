@@ -912,7 +912,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
           <div className="flex gap-4 items-center min-w-0">
              <div className="w-14 h-14 rounded-[20px] flex flex-col items-center justify-center font-black shrink-0 border-b-8 bg-blue-600 border-blue-800 text-white italic"><span className="text-2xl leading-none">{line.number}</span></div>
              <div className="flex flex-col min-w-0">
-               <div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 ${isAtStation ? 'text-emerald-400' : 'text-blue-500'}`}>{isAtStation ? 'Arrêt en cours' : 'Prochaine station'}</div>
+               <div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 ${isAtStation ? 'text-emerald-400' : 'text-blue-500'}`}>{isAtStation ? 'Arrêt en cours' : 'Prochain arrêt'}</div>
                <h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none truncate">{currentStop?.name}</h2>
              </div>
           </div>
