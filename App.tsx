@@ -142,7 +142,8 @@ const App: React.FC = () => {
       if (importedLines.length > 0) {
         if (window.confirm(`Importer ${importedLines.length} lignes ?`)) setLines(importedLines);
       }
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      // Reset input value to allow re-importing the same file
+      e.target.value = "";
     };
     reader.readAsText(file);
   };
@@ -189,12 +190,20 @@ const App: React.FC = () => {
 
   const renderHome = () => (
     <div className="flex flex-col h-full bg-slate-50">
-      <input type="file" accept=".xml" ref={fileInputRef} onChange={handleImportXML} className="hidden" />
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
         <div className="flex justify-between items-end px-1">
           <div className="space-y-0.5"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">LISTE DES LIGNES</p><span className="text-[10px] text-blue-500 font-bold">{lines.length} Itinéraires actifs</span></div>
           <div className="flex gap-2">
-            <button onClick={() => fileInputRef.current?.click()} className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 active:scale-90 transition-all flex items-center gap-1.5"><FileUp size={16} /><span className="text-[10px] font-black uppercase tracking-tight">Import</span></button>
+            <label className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 active:scale-90 transition-all flex items-center gap-1.5 cursor-pointer">
+              <FileUp size={16} />
+              <span className="text-[10px] font-black uppercase tracking-tight">Import</span>
+              <input 
+                type="file" 
+                accept=".xml,text/xml,application/xml" 
+                onChange={handleImportXML} 
+                className="hidden" 
+              />
+            </label>
             <button onClick={exportToXML} className="p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-500 hover:text-emerald-600 active:scale-90 transition-all flex items-center gap-1.5"><FileDown size={16} /><span className="text-[10px] font-black uppercase tracking-tight">Export</span></button>
           </div>
         </div>
@@ -216,7 +225,7 @@ const App: React.FC = () => {
         <div className="relative"><MapComponent stops={selectedLine.stops} height="320px" /><button onClick={() => setView(AppView.HOME)} className="absolute top-4 left-4 bg-white p-3 rounded-full shadow-xl z-20 active:scale-90 transition-transform"><ChevronLeft size={24} className="text-slate-800" /></button></div>
         <div className="p-8 -mt-12 bg-white rounded-t-[48px] relative z-10 shadow-[0_-20px_50px_rgba(0,0,0,0.05)] min-h-[60%]"><div className="w-16 h-1.5 bg-slate-100 rounded-full mx-auto mb-10"></div><div className="flex items-start justify-between mb-8"><div className="space-y-1"><div className="text-blue-600 font-black text-xs uppercase tracking-widest italic">Détails de la ligne</div><h2 className="text-3xl font-black text-slate-900 leading-tight uppercase italic tracking-tighter">{selectedLine.name}</h2></div><div className="bg-slate-900 text-white px-4 py-2 rounded-2xl font-black italic">#{selectedLine.number}</div></div><div className="space-y-8 relative before:absolute before:left-[11px] before:top-4 before:bottom-4 before:w-1 before:bg-slate-50">{selectedLine.stops.map((s, i) => (<div key={i} className="flex items-start space-x-6 relative"><div className={`w-6 h-6 rounded-full border-[5px] bg-white z-10 flex items-center justify-center shrink-0 ${i === 0 ? 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : i === selectedLine!.stops.length - 1 ? 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]' : 'border-slate-100'}`}></div><div className="flex-1 flex justify-between items-center group"><div className="flex flex-col overflow-hidden"><span className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">{s.name}</span><div className="flex items-center gap-2 mt-1"><Clock size={12} className="text-slate-400" /><span className="text-xs text-slate-500 font-medium tracking-tight">Passage à {s.time}</span></div></div><div className={`${i === 0 ? 'bg-emerald-50 text-emerald-600' : i === selectedLine!.stops.length - 1 ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'} text-[10px] font-black px-3 py-1.5 rounded-xl shrink-0 italic uppercase tracking-wider border border-current opacity-70`}>{i === 0 ? 'Départ' : i === selectedLine!.stops.length - 1 ? 'Terminus' : `Arrêt ${i+1}`}</div></div></div>))}</div></div>
       </div>
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-50 pt-16 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]"><button onClick={() => setView(AppView.DRIVING)} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-[32px] font-black flex items-center justify-center space-x-4 shadow-[0_25px_60px_-10px_rgba(37,99,235,0.6)] active:scale-[0.96] transition-all border-b-[10px] border-blue-900 uppercase italic tracking-tight group"><div className="bg-white/20 p-2 rounded-xl group-active:scale-90 transition-transform"><Play size={28} fill="currentColor" className="text-white" /></div><div className="flex flex-col items-start leading-none"><span className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-1">Prêt pour le départ ?</span><span className="text-2xl">Démarrer le service</span></div></button></div>
+      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-50 pt-16 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]"><button onClick={() => setView(AppView.DRIVING)} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-[32px] font-black flex items-center justify-center space-x-4 shadow-[0_25px_60px_-10px_rgba(37,99,235,0.6)] active:scale-[0.96] transition-all border-b-[10px] border-blue-900 uppercase italic tracking-tight group"><div className="bg-white/20 p-2 rounded-xl group-active-scale-90 transition-transform"><Play size={28} fill="currentColor" className="text-white" /></div><div className="flex flex-col items-start leading-none"><span className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-1">Prêt pour le départ ?</span><span className="text-2xl">Démarrer le service</span></div></button></div>
     </div>
   );
 
