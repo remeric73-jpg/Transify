@@ -158,7 +158,6 @@ const App: React.FC = () => {
   
   const handleEditLine = (e: React.MouseEvent, line: BusLine) => {
     e.stopPropagation();
-    // On s'assure que chaque arrêt a un ID unique pour le rendu React stable
     const stopsWithIds = line.stops.map(s => ({ ...s, id: s.id || generateId() }));
     setNewLine({ ...line, stops: stopsWithIds });
     setView(AppView.CREATE);
@@ -438,7 +437,6 @@ const App: React.FC = () => {
                 <div key={stop.id || i} className="bg-white p-4 rounded-3xl border-2 border-slate-100 flex flex-col gap-4 shadow-sm hover:border-blue-100 transition-colors">
                   <div className="flex items-center gap-4">
                     <div className="flex flex-col gap-2 shrink-0">
-                      {/* Boutons agrandis à w-12/h-12 pour une cible tactile plus généreuse sur mobile (48px) */}
                       <button 
                         type="button"
                         onClick={() => moveStop(i, 'up')} 
@@ -501,7 +499,7 @@ const App: React.FC = () => {
           </div>
           <div className="space-y-2">
             <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Rapport de ligne</h2>
-            <div className="flex items-center gap-2"><p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Résumé - Ligne {lastReport.lineNumber}</p><span className="text-[8px] font-bold opacity-30 uppercase tracking-widest">BY MRICO73</span></div>
+            <div className="flex items-center gap-2"><p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Résumé - Ligne {lastReport.lineNumber}</p></div>
           </div>
           <div className="flex flex-col gap-4">
             <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1 print:border-slate-200">
@@ -557,7 +555,7 @@ const App: React.FC = () => {
           </div>
           <div className="space-y-2">
             <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Bilan GeoManuel</h2>
-            <div className="flex items-center gap-2"><p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Traçage dynamique en direct</p><span className="text-[8px] font-bold opacity-30 uppercase tracking-widest">BY MRICO73</span></div>
+            <div className="flex items-center gap-2"><p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Traçage dynamique en direct</p></div>
           </div>
           <div className="relative h-64 sm:h-96 rounded-[40px] overflow-hidden border border-white/10 bg-white/5 shadow-2xl print:hidden"><MapComponent stops={stopsAsStops} dark={true} height="100%" /></div>
           <div className="flex flex-col gap-4">
@@ -604,7 +602,12 @@ const App: React.FC = () => {
         <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0 print:hidden">
           <div className="flex items-center gap-3">
             <div className="bg-white/20 p-2 rounded-xl"><Bus size={22} /></div>
-            <div className="flex flex-col"><h1 className="text-xl font-black uppercase italic tracking-tighter leading-none">GEOligne</h1><span className="text-[8px] font-bold opacity-70 uppercase tracking-widest mt-0.5">BY MRICO73</span></div>
+            <div className="flex flex-col">
+              <h1 className="text-xl font-black uppercase italic tracking-tighter leading-none">GEOligne</h1>
+              {view === AppView.HOME && (
+                <span className="text-[8px] font-bold opacity-70 uppercase tracking-widest mt-0.5">BY MRICO73</span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2 text-[10px] font-black bg-black/20 px-3 py-1.5 rounded-xl border border-white/10 uppercase italic tracking-widest">
@@ -678,7 +681,7 @@ const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
         <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-3xl p-4 shrink-0">
            <div className="flex items-center gap-3">
              <div className="bg-slate-800 p-2 rounded-xl text-blue-400"><MapIcon size={20} /></div>
-             <div className="flex flex-col"><div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Traçage Manuel</span><span className="text-[7px] font-bold opacity-30 uppercase border-l border-white/20 pl-1.5">BY MRICO73</span></div><span className="text-lg font-black italic uppercase leading-none mt-1">{isRunning ? "En cours..." : "En attente"}</span></div>
+             <div className="flex flex-col"><div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Traçage Manuel</span></div><span className="text-lg font-black italic uppercase leading-none mt-1">{isRunning ? "En cours..." : "En attente"}</span></div>
            </div>
            <button onClick={onExit} className="bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight active:scale-95 transition-all">Quitter</button>
         </div>
@@ -735,7 +738,7 @@ const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArr
     <div className="fixed inset-0 bg-[#080b14] text-white z-[500] flex flex-col safe-top safe-bottom">
       <div className="flex-1 p-4 sm:p-6 space-y-4 flex flex-col overflow-hidden max-w-5xl mx-auto w-full">
         <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-3xl p-4 shrink-0">
-           <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl"><Navigation size={20} className="animate-pulse" /></div><div className="flex flex-col"><div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Approche</span><span className="text-[7px] font-bold opacity-30 uppercase pl-1.5 border-l border-white/20">BY MRICO73</span></div><span className="text-lg font-black italic uppercase truncate w-32 leading-none mt-1">{firstStop.name}</span></div></div>
+           <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl"><Navigation size={20} className="animate-pulse" /></div><div className="flex flex-col"><div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Approche</span></div><span className="text-lg font-black italic uppercase truncate w-32 leading-none mt-1">{firstStop.name}</span></div></div>
            <button onClick={onCancel} className="bg-rose-600/20 text-rose-500 px-4 py-2 rounded-xl text-xs font-black uppercase active:scale-95 transition-all">Annuler</button>
         </div>
         <div className="flex-1 rounded-[48px] overflow-hidden border border-white/10 relative"><MapComponent stops={[firstStop]} currentPos={currentPos} dark isDriving height="100%" /></div>
@@ -815,7 +818,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
       <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 overflow-hidden relative max-w-5xl mx-auto w-full">
         <div className="flex gap-3 h-[10%] sm:h-20 shrink-0">
           <div className={`flex-1 rounded-3xl p-4 flex flex-col justify-center border transition-colors duration-500 ${scheduleOffset < -1 ? 'bg-amber-950/20 border-amber-500/30' : scheduleOffset > 2 ? 'bg-rose-950/20 border-rose-500/30' : 'bg-emerald-950/20 border-emerald-500/30'}`}>
-            <div className={`text-[8px] font-black uppercase flex items-center gap-1.5 ${scheduleOffset < -1 ? 'text-amber-400' : scheduleOffset > 2 ? 'text-rose-400' : 'text-emerald-400'}`}>{scheduleOffset < -1 ? 'Avance' : scheduleOffset > 2 ? 'Retard' : 'Ponctuel'}<span className="text-[7px] font-bold opacity-30 lowercase ml-auto">by mrico73</span></div>
+            <div className={`text-[8px] font-black uppercase flex items-center gap-1.5 ${scheduleOffset < -1 ? 'text-amber-400' : scheduleOffset > 2 ? 'text-rose-400' : 'text-emerald-400'}`}>{scheduleOffset < -1 ? 'Avance' : scheduleOffset > 2 ? 'Retard' : 'Ponctuel'}</div>
             <div className="flex items-baseline gap-1.5"><span className="text-2xl font-black italic">{scheduleOffset === 0 ? 'Ok' : scheduleOffset > 0 ? `+${scheduleOffset}` : scheduleOffset}</span><span className="text-[10px] opacity-50 font-bold uppercase">min</span></div>
           </div>
           <div className="flex-[0.6] rounded-3xl p-4 flex flex-col justify-center bg-[#10162a] border border-white/5"><div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Flag size={12} /> Distance</div><span className="text-xl font-black italic tracking-tighter leading-none">{distanceRemaining === null ? '--' : (distanceRemaining < 1000 ? `${Math.round(distanceRemaining)} m` : `${(distanceRemaining / 1000).toFixed(1)} km`)}</span></div>
