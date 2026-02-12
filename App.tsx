@@ -42,7 +42,10 @@ import {
   PlayCircle,
   Map as MapIcon,
   CircleDot,
-  Pencil
+  Pencil,
+  Smartphone,
+  Tablet,
+  Monitor
 } from 'lucide-react';
 import { AppView, BusLine, Stop, CourseReport, StopReport, ManualStop, ManualReport } from './types';
 import { INITIAL_LINES } from './constants';
@@ -78,8 +81,22 @@ const App: React.FC = () => {
   const [lastReport, setLastReport] = useState<CourseReport | null>(null);
   const [lastManualReport, setLastManualReport] = useState<ManualReport | null>(null);
   const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number } | null>(null);
+  const [screenType, setScreenType] = useState<'Mobile' | 'Tablette' | 'Ordinateur'>('Mobile');
 
-  // Gestion du Wake Lock avec protection contre les politiques de sécurité
+  // Détection du type d'écran
+  useEffect(() => {
+    const detectScreen = () => {
+      const width = window.innerWidth;
+      if (width < 640) setScreenType('Mobile');
+      else if (width < 1024) setScreenType('Tablette');
+      else setScreenType('Ordinateur');
+    };
+    detectScreen();
+    window.addEventListener('resize', detectScreen);
+    return () => window.removeEventListener('resize', detectScreen);
+  }, []);
+
+  // Gestion du Wake Lock
   useEffect(() => {
     let wakeLock: any = null;
     const requestWakeLock = async () => {
@@ -88,8 +105,7 @@ const App: React.FC = () => {
           wakeLock = await (navigator as any).wakeLock.request('screen'); 
         } 
         catch (err: any) { 
-          // Silencieusement ignorer les erreurs de permission policy
-          console.warn("Wake Lock indisponible ou refusé:", err.message); 
+          console.warn("Wake Lock indisponible:", err.message); 
         }
       }
     };
@@ -528,7 +544,13 @@ const App: React.FC = () => {
             <div className="bg-white/20 p-2 rounded-xl"><Bus size={22} /></div>
             <div className="flex flex-col"><h1 className="text-xl font-black uppercase italic tracking-tighter leading-none">GEOligne</h1><span className="text-[8px] font-bold opacity-70 uppercase tracking-widest mt-0.5">BY MRICO73</span></div>
           </div>
-          <div className="flex items-center gap-2 text-sm font-mono font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 tabular-nums shrink-0"><Clock size={16} className="text-blue-200" /> {currentTime}</div>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 text-[10px] font-black bg-black/20 px-3 py-1.5 rounded-xl border border-white/10 uppercase italic tracking-widest">
+              {screenType === 'Mobile' ? <Smartphone size={12} /> : screenType === 'Tablette' ? <Tablet size={12} /> : <Monitor size={12} />}
+              {screenType}
+            </div>
+            <div className="flex items-center gap-2 text-sm font-mono font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 tabular-nums shrink-0"><Clock size={16} className="text-blue-200" /> {currentTime}</div>
+          </div>
         </div>
       )}
       <div className="flex-1 overflow-hidden relative">
