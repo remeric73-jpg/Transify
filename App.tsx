@@ -178,6 +178,22 @@ const App: React.FC = () => {
     setView(AppView.CREATE);
   };
 
+  const handleConvertManualToLine = () => {
+    if (!lastManualReport) return;
+    const stopsFromManual: Stop[] = lastManualReport.stops.map((ms, idx) => ({
+      name: `Arrêt ${idx + 1}`,
+      time: ms.time,
+      lat: ms.lat,
+      lng: ms.lng
+    }));
+    setNewLine({
+      number: '',
+      name: '',
+      stops: stopsFromManual
+    });
+    setView(AppView.CREATE);
+  };
+
   const saveLine = () => {
     if (!newLine.number || !newLine.name || !newLine.stops?.length) return;
     
@@ -359,73 +375,88 @@ const App: React.FC = () => {
     }));
 
     return (
-      <div className="flex flex-col h-full bg-slate-50 text-slate-900 overflow-y-auto">
+      <div className="flex flex-col h-full bg-slate-950 text-white overflow-y-auto print:bg-white print:text-slate-900">
         <div className="p-8 space-y-8 pb-32">
+          {/* Header */}
           <div className="flex justify-between items-center print:hidden">
-            <div className="bg-blue-600 p-3 rounded-2xl shadow-lg shadow-blue-200">
-              <CheckCircle2 size={32} className="text-white" />
+            <div className="p-3 bg-white/5 rounded-2xl border border-white/10">
+              <CheckCircle2 size={32} className="text-blue-500" />
             </div>
-            <button onClick={() => setView(AppView.HOME)} className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest active:scale-95 transition-all">
-              <Home size={16} /> Retour Accueil
+            <button onClick={() => setView(AppView.HOME)} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-white/5 active:scale-95 transition-all">
+              <Home size={16} /> Fermer
             </button>
           </div>
           
+          {/* Titles */}
           <div className="space-y-2">
-            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none text-slate-900">Bilan GeoManuel</h2>
-            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">Traçage dynamique sans itinéraire pré-défini</p>
+            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Bilan GeoManuel</h2>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Traçage dynamique sans itinéraire pré-défini</p>
           </div>
 
-          <div className="relative h-64 rounded-[40px] overflow-hidden border-2 border-slate-100 shadow-xl print:hidden">
-            <MapComponent stops={stopsAsStops} height="100%" />
-            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-blue-600 shadow-sm border border-slate-100">Parcours Relevé</div>
+          {/* Map Section */}
+          <div className="relative h-64 rounded-[40px] overflow-hidden border border-white/10 bg-white/5 shadow-2xl print:hidden">
+            <MapComponent stops={stopsAsStops} dark={true} height="100%" />
+            <div className="absolute top-4 left-4 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-blue-400 border border-white/5">Parcours Relevé</div>
           </div>
 
+          {/* Statistics Grid */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 bg-white border border-slate-100 rounded-[32px] p-6 space-y-1 shadow-sm">
-              <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Temps de course total</div>
-              <div className="text-3xl font-black italic text-slate-800">{lastManualReport.duration}</div>
+            <div className="col-span-2 bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1 print:border-slate-200">
+              <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Durée Totale de Service</div>
+              <div className="text-2xl font-black italic text-emerald-400 print:text-emerald-600">{lastManualReport.duration}</div>
             </div>
-            <div className="bg-emerald-50 border border-emerald-100 rounded-[32px] p-6 space-y-1 shadow-sm">
-              <div className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.2em]">Total PAX Montés</div>
-              <div className="text-3xl font-black italic text-emerald-700">{lastManualReport.totalBoarded}</div>
+            <div className="bg-blue-600/10 border border-blue-500/20 rounded-[32px] p-6 space-y-1 print:border-blue-200">
+              <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Total Montées</div>
+              <div className="text-3xl font-black italic text-blue-400 print:text-blue-600">{lastManualReport.totalBoarded} <span className="text-sm not-italic opacity-60">pax</span></div>
             </div>
-            <div className="bg-rose-50 border border-rose-100 rounded-[32px] p-6 space-y-1 shadow-sm">
-              <div className="text-[9px] font-black text-rose-600 uppercase tracking-[0.2em]">Total PAX Descendus</div>
-              <div className="text-3xl font-black italic text-rose-700">{lastManualReport.totalDropped}</div>
+            <div className="bg-rose-600/10 border border-rose-500/20 rounded-[32px] p-6 space-y-1 print:border-rose-200">
+              <div className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em]">Total Descentes</div>
+              <div className="text-3xl font-black italic text-rose-400 print:text-rose-600">{lastManualReport.totalDropped} <span className="text-sm not-italic opacity-60">pax</span></div>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-100 rounded-[40px] overflow-hidden shadow-sm">
-            <div className="bg-slate-50 p-6 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <MapPinCheck size={18} className="text-blue-600" />
-                <span className="text-xs font-black uppercase tracking-widest italic">Points d'immobilisation ({lastManualReport.stops.length})</span>
-              </div>
+          {/* Chronology Section */}
+          <div className="bg-white/5 border border-white/10 rounded-[40px] overflow-hidden print:border-slate-200">
+            <div className="bg-white/5 p-6 border-b border-white/10 flex items-center gap-3 print:bg-slate-50 print:border-slate-200">
+              <MapPinCheck size={18} className="text-blue-500" />
+              <span className="text-xs font-black uppercase tracking-widest italic">Points d'immobilisation ({lastManualReport.stops.length})</span>
             </div>
-            <div className="p-6 space-y-5">
+            <div className="p-6 space-y-6">
               {lastManualReport.stops.map((stop, i) => (
-                <div key={i} className="flex items-center justify-between border-b border-slate-50 pb-4 last:border-0 last:pb-0">
-                  <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black italic shadow-md shadow-slate-200">{i + 1}</div>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-black uppercase text-slate-400">Heure de validation</span>
-                      <span className="font-black italic text-xl text-slate-800 tracking-tight leading-none">{stop.time}</span>
+                <div key={i} className="flex items-center justify-between border-b border-white/5 pb-4 last:border-0 last:pb-0 print:border-slate-100">
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-bold text-slate-100 truncate print:text-slate-900">Point de passage {i + 1}</span>
+                    <div className="flex items-center gap-3 mt-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-emerald-400 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter"><UserPlus size={10} /> {stop.boarded}</span>
+                        <span className="text-rose-400 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter"><UserMinus size={10} /> {stop.dropped}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <div className="bg-emerald-50 px-3 py-1 rounded-xl text-[10px] font-black text-emerald-600 border border-emerald-100">+{stop.boarded}</div>
-                    <div className="bg-rose-50 px-3 py-1 rounded-xl text-[10px] font-black text-rose-600 border border-rose-100">-{stop.dropped}</div>
+                  <div className="text-right flex flex-col items-end shrink-0">
+                    <span className="text-lg font-black italic leading-none text-slate-100 print:text-slate-900">{stop.time}</span>
+                    <div className="text-[8px] font-black uppercase mt-1 px-2 py-0.5 rounded-full border bg-white/5 border-white/10 text-slate-400">
+                       Validé à l'arrêt
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-slate-100 z-50 pb-[env(safe-area-inset-bottom,24px)] print:hidden">
-          <button onClick={handleExportPDF} className="w-full bg-emerald-600 text-white p-5 rounded-[32px] font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight italic">
-            <FileText size={22} />
-            <span>Exporter le rapport GeoManuel</span>
-          </button>
+        
+        {/* Floating Action Bar */}
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[env(safe-area-inset-bottom,24px)] print:hidden">
+          <div className="flex gap-4 max-w-md mx-auto">
+            <button onClick={handleConvertManualToLine} className="flex-1 bg-blue-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight italic">
+              <Save size={22} />
+              <span className="text-sm">Sauvegarder la ligne</span>
+            </button>
+            <button onClick={handleExportPDF} className="flex-1 bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight italic">
+              <FileText size={22} />
+              <span className="text-sm">Exporter en PDF</span>
+            </button>
+          </div>
         </div>
       </div>
     );
