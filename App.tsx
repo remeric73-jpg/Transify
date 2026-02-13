@@ -49,7 +49,8 @@ import {
   Layers,
   Globe,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Activity
 } from 'lucide-react';
 import { AppView, BusLine, Stop, CourseReport, StopReport, ManualStop, ManualReport } from './types';
 import { INITIAL_LINES } from './constants';
@@ -101,6 +102,32 @@ const App: React.FC = () => {
     window.addEventListener('resize', detectScreen);
     return () => window.removeEventListener('resize', detectScreen);
   }, []);
+
+  // Calcul des statistiques de la ligne sélectionnée
+  const lineStats = useMemo(() => {
+    if (!selectedLine || selectedLine.stops.length < 2) return null;
+    const stops = selectedLine.stops;
+    const firstStop = stops[0];
+    const lastStop = stops[stops.length - 1];
+
+    const parseTime = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const diffMin = parseTime(lastStop.time) - parseTime(firstStop.time);
+    const duration = diffMin >= 60 
+      ? `${Math.floor(diffMin / 60)}h${diffMin % 60 > 0 ? (diffMin % 60).toString().padStart(2, '0') : ''}` 
+      : `${diffMin} min`;
+
+    let totalDist = 0;
+    for (let i = 0; i < stops.length - 1; i++) {
+      totalDist += getDistance(stops[i].lat, stops[i].lng, stops[i + 1].lat, stops[i + 1].lng);
+    }
+    const distance = (totalDist / 1000).toFixed(1) + ' km';
+
+    return { duration, distance };
+  }, [selectedLine]);
 
   // Gestion du Wake Lock
   useEffect(() => {
@@ -384,13 +411,34 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col bg-white rounded-none lg:mt-0 relative z-10 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] lg:shadow-none min-h-0 overflow-visible">
         <div className="p-8 flex-1 overflow-y-auto pb-48 lg:pb-32 min-h-0">
           <div className="w-16 h-1.5 bg-slate-100 rounded-full mx-auto mb-10 lg:hidden"></div>
-          <div className="flex items-start justify-between mb-8">
+          <div className="flex items-start justify-between mb-6">
             <div className="space-y-1">
               <div className="text-blue-600 font-black text-xs uppercase tracking-widest italic">Détails de l'itinéraire</div>
               <h2 className="text-3xl font-black text-slate-900 leading-tight uppercase italic tracking-tighter">{selectedLine.name}</h2>
             </div>
             <div className="bg-slate-900 text-white px-4 py-2 rounded-2xl font-black italic">#{selectedLine.number}</div>
           </div>
+
+          {/* Tuiles de statistiques (Durée et Km) */}
+          {lineStats && (
+            <div className="grid grid-cols-2 gap-4 mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex items-center gap-3">
+                <div className="bg-blue-600/10 text-blue-600 p-2.5 rounded-2xl shrink-0"><Timer size={20} /></div>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Durée du trajet</p>
+                  <p className="text-lg font-black text-slate-800 italic leading-none">{lineStats.duration}</p>
+                </div>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex items-center gap-3">
+                <div className="bg-blue-600/10 text-blue-600 p-2.5 rounded-2xl shrink-0"><Navigation2 size={20} /></div>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Distance totale</p>
+                  <p className="text-lg font-black text-slate-800 italic leading-none">{lineStats.distance}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-8 relative before:absolute before:left-[11px] before:top-4 before:bottom-4 before:w-1 before:bg-slate-50">
             {selectedLine.stops.map((s, i) => (
               <div key={s.id || i} className="flex items-start space-x-6 relative">
@@ -470,8 +518,8 @@ const App: React.FC = () => {
                     <button type="button" onClick={() => removeStop(i)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors active:scale-90"><Trash2 size={20} /></button>
                   </div>
                   <div className="flex gap-2 pt-2 border-t border-slate-50">
-                    <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lat ?? ''} onChange={e => updateStop(i, 'lat', e.target.value)} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LAT" /></div>
-                    <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lng ?? ''} onChange={e => updateStop(i, 'lng', e.target.value)} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LNG" /></div>
+                    <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lat ?? ''} onChange={updateStop.bind(null, i, 'lat')} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LAT" /></div>
+                    <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lng ?? ''} onChange={updateStop.bind(null, i, 'lng')} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LNG" /></div>
                   </div>
                 </div>
               ))}
@@ -723,46 +771,108 @@ interface PrepViewProps { line: BusLine; userLocation: { lat: number; lng: numbe
 const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArrived }) => {
   const [currentPos, setCurrentPos] = useState(userLocation);
   const [currentHeading, setCurrentHeading] = useState<number | null>(null);
+  const [now, setNow] = useState(new Date());
   const firstStop = line.stops[0];
   
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    if (!navigator.geolocation) return () => clearInterval(timer);
     const watchId = navigator.geolocation.watchPosition((pos) => {
       const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       setCurrentPos(newPos);
       if (pos.coords.heading !== null) setCurrentHeading(pos.coords.heading);
       if (getDistance(newPos.lat, newPos.lng, firstStop.lat, firstStop.lng) <= 50) onArrived();
     }, (err) => console.error(err), { enableHighAccuracy: true });
-    return () => navigator.geolocation.clearWatch(watchId);
+    return () => { navigator.geolocation.clearWatch(watchId); clearInterval(timer); };
   }, [firstStop, onArrived]);
 
   const stats = useMemo(() => {
     if (!currentPos) return null;
+    
+    // Distance au point de départ
     const dist = getDistance(currentPos.lat, currentPos.lng, firstStop.lat, firstStop.lng);
+    
+    // Temps jusqu'au départ prévu (en minutes)
     const [h, m] = firstStop.time.split(':').map(Number);
     const scheduled = new Date(); scheduled.setHours(h, m, 0, 0);
-    const timeToStart = Math.floor((scheduled.getTime() - new Date().getTime()) / 60000);
-    const travelTime = Math.ceil(dist / 500);
-    return { dist, status: (timeToStart - travelTime) < 0 ? 'late' : 'early', diff: Math.abs(timeToStart - travelTime) };
-  }, [currentPos, firstStop]);
+    const timeUntilDeparture = (scheduled.getTime() - now.getTime()) / 60000;
+    
+    // Estimation du temps de trajet (basé sur 20km/h de moyenne urbaine = ~333m/min)
+    const estimatedTravelTime = dist / 333;
+    const etaDate = new Date(now.getTime() + estimatedTravelTime * 60000);
+    const etaFormatted = etaDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Marge de manœuvre
+    const margin = timeUntilDeparture - estimatedTravelTime;
+    
+    let status: 'late' | 'tight' | 'optimal' | 'early' = 'optimal';
+    if (margin < 0) status = 'late';
+    else if (margin < 3) status = 'tight';
+    else if (margin > 10) status = 'early';
+    
+    return { dist, status, margin: Math.round(margin), eta: etaFormatted };
+  }, [currentPos, firstStop, now]);
 
   return (
     <div className="fixed inset-0 bg-[#080b14] text-white z-[500] flex flex-col safe-top safe-bottom">
       <div className="flex-1 p-4 sm:p-6 space-y-4 flex flex-col overflow-hidden max-w-5xl mx-auto w-full">
+        {/* Header bar */}
         <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-3xl p-4 shrink-0">
-           <div className="flex items-center gap-3"><div className="bg-blue-600 p-2 rounded-xl"><Navigation size={20} className="animate-pulse" /></div><div className="flex flex-col"><div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Approche</span></div><span className="text-lg font-black italic uppercase truncate w-32 leading-none mt-1">{firstStop.name}</span></div></div>
-           <button onClick={onCancel} className="bg-rose-600/20 text-rose-500 px-4 py-2 rounded-xl text-xs font-black uppercase active:scale-95 transition-all">Annuler</button>
+           <div className="flex items-center gap-3">
+             <div className="bg-blue-600 p-2 rounded-xl"><Activity size={20} className="animate-pulse" /></div>
+             <div className="flex flex-col">
+               <div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Statut Approche</span></div>
+               <span className="text-lg font-black italic uppercase truncate w-32 leading-none mt-1">{firstStop.name}</span>
+             </div>
+           </div>
+           <button onClick={onCancel} className="bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight active:scale-95 transition-all">Retour</button>
         </div>
-        <div className="flex-1 rounded-[48px] overflow-hidden border border-white/10 relative">
+
+        {/* Map area */}
+        <div className="flex-1 rounded-[48px] overflow-hidden border border-white/10 relative shadow-inner">
           <MapComponent stops={[firstStop]} currentPos={currentPos} heading={currentHeading} dark isDriving height="100%" />
         </div>
+
+        {/* Status Indicators */}
         <div className="grid grid-cols-2 gap-3 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
-          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-5 space-y-1"><span className="text-[8px] font-black uppercase text-slate-500">Distance</span><div className="text-2xl font-black italic">{stats ? (stats.dist < 1000 ? `${Math.round(stats.dist)}m` : `${(stats.dist/1000).toFixed(1)}km`) : '--'}</div></div>
-          <div className={`border rounded-[32px] p-5 space-y-1 ${stats?.status === 'late' ? 'bg-rose-950/20 border-rose-500/30' : 'bg-emerald-950/20 border-emerald-500/30'}`}><span className={`text-[8px] font-black uppercase ${stats?.status === 'late' ? 'text-rose-400' : 'text-emerald-400'}`}>{stats?.status === 'late' ? 'Retard' : 'Marge'}</span><div className={`text-2xl font-black italic ${stats?.status === 'late' ? 'text-rose-500' : 'text-emerald-500'}`}>{stats ? `${stats.diff} min` : '--'}</div></div>
+          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-5 flex flex-col gap-1">
+            <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] flex items-center gap-2"><Flag size={10} /> Distance</span>
+            <div className="text-2xl font-black italic text-slate-100 tabular-nums">
+              {stats ? (stats.dist < 1000 ? `${Math.round(stats.dist)}m` : `${(stats.dist/1000).toFixed(1)}km`) : '--'}
+            </div>
+          </div>
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[32px] p-5 flex flex-col gap-1">
+            <span className="text-[9px] font-black uppercase text-emerald-400 tracking-[0.2em] flex items-center gap-2"><Clock size={10} /> Heure de départ</span>
+            <div className="text-2xl font-black italic text-emerald-500 tabular-nums">
+              {firstStop.time}
+            </div>
+          </div>
         </div>
-        <div className="bg-blue-600 border-b-8 border-blue-800 rounded-[32px] p-6 text-center shadow-2xl space-y-4 sm:max-w-md sm:mx-auto sm:w-full">
-          <div className="space-y-1"><span className="text-[10px] font-black uppercase opacity-70">Départ prévu</span><div className="text-4xl font-black italic">{firstStop.time}</div></div>
-          <button onClick={onArrived} className="w-full bg-white text-blue-700 py-3 rounded-2xl font-black uppercase italic tracking-tighter flex items-center justify-center gap-2 active:scale-[0.98] shadow-xl"><PlayCircle size={20} />Démarrer</button>
+
+        {/* Main Punctuality Feedback Card */}
+        <div className={`rounded-[40px] p-6 text-center shadow-2xl space-y-4 sm:max-w-md sm:mx-auto sm:w-full border-t border-white/10 relative overflow-hidden transition-colors duration-700
+          ${stats?.status === 'late' ? 'bg-rose-600' : stats?.status === 'tight' ? 'bg-orange-500' : stats?.status === 'early' ? 'bg-blue-600' : 'bg-emerald-600'}`}>
+          
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-black/10 rounded-full blur-2xl"></div>
+
+          <div className="space-y-1 relative">
+            <span className="text-[10px] font-black uppercase opacity-70 tracking-widest italic">
+              {stats?.status === 'late' ? 'ARRIVÉE APRÈS LE DÉPART' : stats?.status === 'tight' ? 'PONCTUALITÉ TENDUE' : stats?.status === 'early' ? 'LARGE AVANCE' : 'DANS LES TEMPS'}
+            </span>
+            <div className="text-5xl font-black italic tracking-tighter tabular-nums drop-shadow-md">
+              {stats ? (stats.margin > 0 ? `+${stats.margin}` : stats.margin) : '--'}
+              <span className="text-xl ml-1 opacity-70">MIN</span>
+            </div>
+            <p className="text-[9px] font-bold uppercase tracking-tight opacity-80">Marge calculée par rapport au départ de {firstStop.time}</p>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={onArrived} className="flex-1 bg-white text-slate-900 py-4 rounded-3xl font-black uppercase italic tracking-tighter flex items-center justify-center gap-2 active:scale-[0.98] shadow-xl transition-all">
+              <PlayCircle size={22} className={stats?.status === 'late' ? 'text-rose-600' : 'text-emerald-600'} />
+              Démarrer Maintenant
+            </button>
+          </div>
         </div>
       </div>
     </div>
