@@ -5,20 +5,24 @@ export interface Stop {
   time: string;
   lat: number;
   lng: number;
+  annotation?: string;
 }
+
+export type LineType = 'Scolaire' | 'Urbain' | 'Interurbain' | 'Grande ligne';
 
 export interface BusLine {
   id: string;
   number: string;
   name: string;
   stops: Stop[];
+  type?: LineType;
 }
 
 export interface StopReport {
   stopName: string;
   scheduledTime: string;
   actualTime: string;
-  status: 'early' | 'on-time' | 'late';
+  status: 'early' | 'on-time' | 'late' | 'not-served';
   diffMinutes: number;
   boardedCount: number;
   droppedCount: number;

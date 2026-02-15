@@ -50,9 +50,16 @@ import {
   Globe,
   ChevronUp,
   ChevronDown,
-  Activity
+  Activity,
+  School,
+  Building2,
+  Map as MapPath,
+  Milestone,
+  MessageSquareText,
+  Ban,
+  Locate
 } from 'lucide-react';
-import { AppView, BusLine, Stop, CourseReport, StopReport, ManualStop, ManualReport } from './types';
+import { AppView, BusLine, Stop, CourseReport, StopReport, ManualStop, ManualReport, LineType } from './types';
 import { INITIAL_LINES } from './constants';
 import MapComponent from './components/MapComponent';
 
@@ -71,6 +78,8 @@ const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => 
 
 const STORAGE_KEY = 'geoligne_bus_lines';
 
+const LINE_TYPES: LineType[] = ['Scolaire', 'Urbain', 'Interurbain', 'Grande ligne'];
+
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.HOME);
   
@@ -83,14 +92,13 @@ const App: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
-  const [newLine, setNewLine] = useState<Partial<BusLine>>({ number: '', name: '', stops: [] });
+  const [newLine, setNewLine] = useState<Partial<BusLine>>({ number: '', name: '', stops: [], type: 'Urbain' });
   const [lastReport, setLastReport] = useState<CourseReport | null>(null);
   const [lastManualReport, setLastManualReport] = useState<ManualReport | null>(null);
   const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number } | null>(null);
   const [screenType, setScreenType] = useState<'Mobile' | 'Tablette' | 'Ordinateur'>('Mobile');
   const [isSatellite, setIsSatellite] = useState(false);
 
-  // Détection du type d'écran
   useEffect(() => {
     const detectScreen = () => {
       const width = window.innerWidth;
@@ -103,7 +111,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', detectScreen);
   }, []);
 
-  // Calcul des statistiques de la ligne sélectionnée
   const lineStats = useMemo(() => {
     if (!selectedLine || selectedLine.stops.length < 2) return null;
     const stops = selectedLine.stops;
@@ -129,7 +136,6 @@ const App: React.FC = () => {
     return { duration, distance };
   }, [selectedLine]);
 
-  // Gestion du Wake Lock
   useEffect(() => {
     let wakeLock: any = null;
     const requestWakeLock = async () => {
@@ -185,23 +191,23 @@ const App: React.FC = () => {
   const handleSelectLine = (line: BusLine) => { setSelectedLine(line); setMapFocus(null); setIsSatellite(false); setView(AppView.DETAIL); };
   
   const handleCreateLine = () => { 
-    setNewLine({ number: '', name: '', stops: [] }); 
+    setNewLine({ number: '', name: '', stops: [], type: 'Urbain' }); 
     setView(AppView.CREATE); 
   };
   
   const handleEditLine = (e: React.MouseEvent, line: BusLine) => {
     e.stopPropagation();
     const stopsWithIds = line.stops.map(s => ({ ...s, id: s.id || generateId() }));
-    setNewLine({ ...line, stops: stopsWithIds });
+    setNewLine({ ...line, stops: stopsWithIds, type: line.type || 'Urbain' });
     setView(AppView.CREATE);
   };
 
   const exportToXML = () => {
     let xmlString = '<?xml version="1.0" encoding="UTF-8"?>\n<geoligne>\n';
     lines.forEach(line => {
-      xmlString += `  <line id="${line.id}">\n    <number>${line.number}</number>\n    <name>${line.name}</name>\n    <stops>\n`;
+      xmlString += `  <line id="${line.id}">\n    <number>${line.number}</number>\n    <name>${line.name}</name>\n    <type>${line.type || 'Urbain'}</type>\n    <stops>\n`;
       line.stops.forEach(stop => {
-        xmlString += `      <stop>\n        <name>${stop.name}</name>\n        <time>${stop.time}</time>\n        <lat>${stop.lat}</lat>\n        <lng>${stop.lng}</lng>\n      </stop>\n`;
+        xmlString += `      <stop>\n        <name>${stop.name}</name>\n        <time>${stop.time}</time>\n        <lat>${stop.lat}</lat>\n        <lng>${stop.lng}</lng>\n        <annotation>${stop.annotation || ''}</annotation>\n      </stop>\n`;
       });
       xmlString += `    </stops>\n  </line>\n`;
     });
@@ -232,6 +238,7 @@ const App: React.FC = () => {
         const id = lineEl.getAttribute("id") || generateId();
         const number = lineEl.getElementsByTagName("number")[0]?.textContent || "??";
         const name = lineEl.getElementsByTagName("name")[0]?.textContent || "Inconnu";
+        const typeStr = lineEl.getElementsByTagName("type")[0]?.textContent as LineType || 'Urbain';
         const stops: Stop[] = [];
         const stopElements = lineEl.getElementsByTagName("stop");
         for (let j = 0; j < stopElements.length; j++) {
@@ -242,9 +249,10 @@ const App: React.FC = () => {
             time: stopEl.getElementsByTagName("time")[0]?.textContent || "00:00",
             lat: parseFloat(stopEl.getElementsByTagName("lat")[0]?.textContent || "0"),
             lng: parseFloat(stopEl.getElementsByTagName("lng")[0]?.textContent || "0"),
+            annotation: stopEl.getElementsByTagName("annotation")[0]?.textContent || "",
           });
         }
-        importedLines.push({ id, number, name, stops });
+        importedLines.push({ id, number, name, stops, type: typeStr });
       }
       if (importedLines.length > 0) {
         if (window.confirm(`Importer ${importedLines.length} lignes ?`)) setLines(importedLines);
@@ -270,7 +278,7 @@ const App: React.FC = () => {
       lat: ms.lat,
       lng: ms.lng
     }));
-    setNewLine({ number: 'M1', name: `Itinéraire Manuel ${new Date().toLocaleDateString()}`, stops: stopsFromManual });
+    setNewLine({ number: 'M1', name: `Itinéraire Manuel ${new Date().toLocaleDateString()}`, stops: stopsFromManual, type: 'Urbain' });
     setView(AppView.CREATE);
   };
 
@@ -283,7 +291,8 @@ const App: React.FC = () => {
         id: generateId(), 
         number: newLine.number!, 
         name: newLine.name!, 
-        stops: newLine.stops as Stop[] 
+        stops: newLine.stops as Stop[],
+        type: newLine.type as LineType
       };
       setLines(prev => [...prev, lineToAdd]);
     }
@@ -331,6 +340,26 @@ const App: React.FC = () => {
   const handleManualCourseFinished = (report: ManualReport) => { setLastManualReport(report); setView(AppView.MANUAL_SUMMARY); };
   const handleExportPDF = () => { window.print(); };
 
+  const getTypeIcon = (type?: LineType) => {
+    switch (type) {
+      case 'Scolaire': return <School size={14} />;
+      case 'Urbain': return <Building2 size={14} />;
+      case 'Interurbain': return <MapPath size={14} />;
+      case 'Grande ligne': return <Milestone size={14} />;
+      default: return <Bus size={14} />;
+    }
+  };
+
+  const getTypeColorClass = (type?: LineType) => {
+    switch (type) {
+      case 'Scolaire': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'Urbain': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'Interurbain': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'Grande ligne': return 'bg-purple-100 text-purple-700 border-purple-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
   const renderHome = () => (
     <div className="flex flex-col h-full bg-slate-50">
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-40">
@@ -365,7 +394,19 @@ const App: React.FC = () => {
           {lines.map(line => (
             <div key={line.id} onClick={() => handleSelectLine(line)} className="bg-white p-4 rounded-3xl shadow-sm flex items-center space-x-4 active:scale-[0.98] transition-transform cursor-pointer border border-slate-100 hover:shadow-md group">
               <div className="bg-blue-600 text-white w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-black shrink-0 shadow-lg shadow-blue-200"><span className="text-[8px] opacity-70 leading-none">LIGNE</span><span className="text-xl leading-none">{line.number}</span></div>
-              <div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 truncate text-base tracking-tight">{line.name}</h3><div className="flex items-center gap-2 mt-1"><span className="text-xs text-slate-400 flex items-center gap-1"><MapPin size={12} /> {line.stops.length} arrêts</span></div></div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                   <h3 className="font-bold text-slate-800 truncate text-base tracking-tight">{line.name}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400 flex items-center gap-1 font-bold uppercase tracking-tight"><MapPin size={10} /> {line.stops.length} arrêts</span>
+                  {line.type && (
+                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${getTypeColorClass(line.type)}`}>
+                      {line.type}
+                    </span>
+                  )}
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 <button onClick={(e) => handleEditLine(e, line)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 hover:bg-blue-50 hover:text-blue-500 transition-colors"><Pencil size={18} /></button>
                 <button onClick={(e) => deleteLine(e, line.id)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 hover:bg-rose-50 hover:text-rose-500 transition-colors"><Trash2 size={18} /></button>
@@ -412,14 +453,16 @@ const App: React.FC = () => {
         <div className="p-8 flex-1 overflow-y-auto pb-48 lg:pb-32 min-h-0">
           <div className="w-16 h-1.5 bg-slate-100 rounded-full mx-auto mb-10 lg:hidden"></div>
           <div className="flex items-start justify-between mb-6">
-            <div className="space-y-1">
-              <div className="text-blue-600 font-black text-xs uppercase tracking-widest italic">Détails de l'itinéraire</div>
-              <h2 className="text-3xl font-black text-slate-900 leading-tight uppercase italic tracking-tighter">{selectedLine.name}</h2>
+            <div className="space-y-2">
+              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest italic transition-all ${getTypeColorClass(selectedLine.type)}`}>
+                {getTypeIcon(selectedLine.type)}
+                {selectedLine.type || 'Service'}
+              </div>
+              <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-tight">{selectedLine.name}</h2>
             </div>
-            <div className="bg-slate-900 text-white px-4 py-2 rounded-2xl font-black italic">#{selectedLine.number}</div>
+            <div className="bg-slate-900 text-white px-4 py-2 rounded-2xl font-black italic shadow-lg shadow-slate-200">#{selectedLine.number}</div>
           </div>
 
-          {/* Tuiles de statistiques (Durée et Km) */}
           {lineStats && (
             <div className="grid grid-cols-2 gap-4 mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex items-center gap-3">
@@ -447,6 +490,12 @@ const App: React.FC = () => {
                   <div className="flex flex-col overflow-hidden">
                     <span className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">{s.name}</span>
                     <div className="flex items-center gap-2 mt-1"><Clock size={12} className="text-slate-400" /><span className="text-xs text-slate-500 font-medium tracking-tight">Passage à {s.time}</span></div>
+                    {s.annotation && (
+                      <div className="mt-2 flex items-start gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        <MessageSquareText size={12} className="text-blue-500 mt-0.5 shrink-0" />
+                        <span className="text-[11px] text-slate-600 italic leading-tight">{s.annotation}</span>
+                      </div>
+                    )}
                   </div>
                   <div className={`${i === 0 ? 'bg-emerald-50 text-emerald-600' : i === selectedLine!.stops.length - 1 ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'} text-[10px] font-black px-3 py-1.5 rounded-xl shrink-0 italic uppercase tracking-wider border border-current opacity-70`}>{i === 0 ? 'Départ' : i === selectedLine!.stops.length - 1 ? 'Terminus' : `Arrêt ${i+1}`}</div>
                 </div>
@@ -478,6 +527,25 @@ const App: React.FC = () => {
             <div className="grid grid-cols-4 gap-4">
               <input placeholder="NO." value={newLine.number ?? ''} onChange={e => setNewLine(prev => ({...prev, number: e.target.value}))} className="bg-white border-2 border-slate-100 p-4 rounded-2xl font-black text-center focus:border-blue-500 outline-none shadow-sm" />
               <input placeholder="Nom de la destination..." value={newLine.name ?? ''} onChange={e => setNewLine(prev => ({...prev, name: e.target.value}))} className="col-span-3 bg-white border-2 border-slate-100 p-4 rounded-2xl font-bold focus:border-blue-500 outline-none shadow-sm" />
+            </div>
+            
+            <div className="space-y-3 pt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Type de ligne</p>
+              <div className="flex flex-wrap gap-2">
+                {LINE_TYPES.map(type => (
+                  <button 
+                    key={type} 
+                    onClick={() => setNewLine(prev => ({ ...prev, type }))}
+                    className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-2 shadow-sm
+                      ${newLine.type === type 
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-blue-200' 
+                        : 'bg-white border-slate-100 text-slate-400 hover:border-blue-100'}`}
+                  >
+                    {getTypeIcon(type)}
+                    {type}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <div className="lg:hidden space-y-4">
@@ -513,13 +581,24 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex-1 space-y-3 min-w-0">
                       <input value={stop.name ?? ''} onChange={e => updateStop(i, 'name', e.target.value)} className="w-full font-bold text-slate-800 outline-none bg-slate-50/50 p-2 rounded-lg" placeholder="Nom de la station" />
-                      <div className="flex items-center bg-slate-50 rounded-xl px-3 py-1.5 gap-2"><Clock size={14} className="text-slate-400" /><input type="time" value={stop.time ?? ''} onChange={e => updateStop(i, 'time', e.target.value)} className="bg-transparent text-sm font-bold text-slate-900 outline-none w-full" /></div>
+                      <div className="flex gap-2">
+                        <div className="flex-1 flex items-center bg-slate-50 rounded-xl px-3 py-1.5 gap-2"><Clock size={14} className="text-slate-400" /><input type="time" value={stop.time ?? ''} onChange={e => updateStop(i, 'time', e.target.value)} className="bg-transparent text-sm font-bold text-slate-900 outline-none w-full" /></div>
+                      </div>
+                      <div className="flex items-start bg-slate-50/50 rounded-xl px-3 py-2 gap-2 border border-slate-100/50">
+                        <MessageSquareText size={14} className="text-slate-300 mt-1 shrink-0" />
+                        <textarea 
+                          value={stop.annotation ?? ''} 
+                          onChange={e => updateStop(i, 'annotation', e.target.value)} 
+                          className="bg-transparent text-[11px] font-medium text-slate-700 outline-none w-full resize-none h-10 leading-tight" 
+                          placeholder="Ajouter une annotation (ex: Quai B, ralentisseur...)"
+                        />
+                      </div>
                     </div>
                     <button type="button" onClick={() => removeStop(i)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors active:scale-90"><Trash2 size={20} /></button>
                   </div>
                   <div className="flex gap-2 pt-2 border-t border-slate-50">
-                    <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lat ?? ''} onChange={updateStop.bind(null, i, 'lat')} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LAT" /></div>
-                    <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lng ?? ''} onChange={updateStop.bind(null, i, 'lng')} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LNG" /></div>
+                    <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lat ?? ''} onChange={e => updateStop(i, 'lat', e.target.value)} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LAT" /></div>
+                    <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lng ?? ''} onChange={e => updateStop(i, 'lng', e.target.value)} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LNG" /></div>
                   </div>
                 </div>
               ))}
@@ -577,15 +656,26 @@ const App: React.FC = () => {
               {lastReport.stops.map((stop, i) => (
                 <div key={i} className="flex items-center justify-between border-b border-white/5 pb-4 print:border-slate-100">
                   <div className="flex flex-col min-w-0">
-                    <span className="font-bold text-slate-100 truncate print:text-slate-900">{stop.stopName}</span>
+                    <span className={`font-bold truncate print:text-slate-900 ${stop.status === 'not-served' ? 'text-slate-500 line-through opacity-50' : 'text-slate-100'}`}>{stop.stopName}</span>
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-[9px] text-slate-500 font-bold uppercase">Prévu: {stop.scheduledTime}</span>
                       <div className="flex items-center gap-2"><span className="text-blue-400 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter"><UserPlus size={10} /> {stop.boardedCount}</span><span className="text-rose-400 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter"><UserMinus size={10} /> {stop.droppedCount}</span></div>
                     </div>
                   </div>
                   <div className="text-right flex flex-col items-end shrink-0">
-                    <span className={`text-lg font-black italic leading-none ${stop.status === 'late' ? 'text-rose-500' : stop.status === 'early' ? 'text-blue-400' : 'text-emerald-400'}`}>{stop.actualTime}</span>
-                    <div className={`text-[8px] font-black uppercase mt-1 px-2 py-0.5 rounded-full border ${stop.status === 'late' ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : stop.status === 'early' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'}`}>{stop.status === 'late' ? `+${stop.diffMinutes} min` : stop.status === 'early' ? `${stop.diffMinutes} min` : 'OK'}</div>
+                    {stop.status === 'not-served' ? (
+                      <div className="flex flex-col items-end">
+                        <span className="text-slate-500 font-black italic text-sm uppercase">Non atteint</span>
+                        <div className="text-[8px] font-black uppercase mt-1 px-2 py-0.5 rounded-full border bg-slate-500/10 border-slate-500/30 text-slate-500 flex items-center gap-1">
+                          <Ban size={8} /> Non desservi
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <span className={`text-lg font-black italic leading-none ${stop.status === 'late' ? 'text-rose-500' : stop.status === 'early' ? 'text-blue-400' : 'text-emerald-400'}`}>{stop.actualTime}</span>
+                        <div className={`text-[8px] font-black uppercase mt-1 px-2 py-0.5 rounded-full border ${stop.status === 'late' ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : stop.status === 'early' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'}`}>{stop.status === 'late' ? `+${stop.diffMinutes} min` : stop.status === 'early' ? `${stop.diffMinutes} min` : 'OK'}</div>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -686,7 +776,6 @@ const App: React.FC = () => {
   );
 };
 
-// --- Sub-component: GeoManuelView ---
 interface GeoManuelViewProps { onExit: () => void; onFinish: (report: ManualReport) => void; }
 const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
   const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(null);
@@ -766,12 +855,12 @@ const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
   );
 };
 
-// --- Sub-component: PrepView ---
 interface PrepViewProps { line: BusLine; userLocation: { lat: number; lng: number } | null; onCancel: () => void; onArrived: () => void; }
 const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArrived }) => {
   const [currentPos, setCurrentPos] = useState(userLocation);
   const [currentHeading, setCurrentHeading] = useState<number | null>(null);
   const [now, setNow] = useState(new Date());
+  const [routeMeta, setRouteMeta] = useState<{ distance: number; duration: number } | null>(null);
   const firstStop = line.stops[0];
   
   useEffect(() => {
@@ -789,89 +878,99 @@ const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArr
   const stats = useMemo(() => {
     if (!currentPos) return null;
     
-    // Distance au point de départ
-    const dist = getDistance(currentPos.lat, currentPos.lng, firstStop.lat, firstStop.lng);
-    
-    // Temps jusqu'au départ prévu (en minutes)
-    const [h, m] = firstStop.time.split(':').map(Number);
-    const scheduled = new Date(); scheduled.setHours(h, m, 0, 0);
-    const timeUntilDeparture = (scheduled.getTime() - now.getTime()) / 60000;
-    
-    // Estimation du temps de trajet (basé sur 20km/h de moyenne urbaine = ~333m/min)
-    const estimatedTravelTime = dist / 333;
-    const etaDate = new Date(now.getTime() + estimatedTravelTime * 60000);
+    const durationSeconds = routeMeta?.duration || (getDistance(currentPos.lat, currentPos.lng, firstStop.lat, firstStop.lng) / 11);
+    const etaDate = new Date(now.getTime() + durationSeconds * 1000);
     const etaFormatted = etaDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
-    // Marge de manœuvre
-    const margin = timeUntilDeparture - estimatedTravelTime;
+    const [h, m] = firstStop.time.split(':').map(Number);
+    const scheduled = new Date(); scheduled.setHours(h, m, 0, 0);
+    const marginMin = Math.round((scheduled.getTime() - etaDate.getTime()) / 60000);
     
     let status: 'late' | 'tight' | 'optimal' | 'early' = 'optimal';
-    if (margin < 0) status = 'late';
-    else if (margin < 3) status = 'tight';
-    else if (margin > 10) status = 'early';
+    if (marginMin < 0) status = 'late';
+    else if (marginMin < 5) status = 'tight';
+    else if (marginMin > 15) status = 'early';
     
-    return { dist, status, margin: Math.round(margin), eta: etaFormatted };
-  }, [currentPos, firstStop, now]);
+    return { 
+      status, 
+      margin: marginMin, 
+      eta: etaFormatted,
+      distance: routeMeta ? (routeMeta.distance / 1000).toFixed(1) : (getDistance(currentPos.lat, currentPos.lng, firstStop.lat, firstStop.lng)/1000).toFixed(1)
+    };
+  }, [currentPos, firstStop, now, routeMeta]);
 
   return (
     <div className="fixed inset-0 bg-[#080b14] text-white z-[500] flex flex-col safe-top safe-bottom">
       <div className="flex-1 p-4 sm:p-6 space-y-4 flex flex-col overflow-hidden max-w-5xl mx-auto w-full">
-        {/* Header bar */}
         <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-3xl p-4 shrink-0">
            <div className="flex items-center gap-3">
              <div className="bg-blue-600 p-2 rounded-xl"><Activity size={20} className="animate-pulse" /></div>
              <div className="flex flex-col">
-               <div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Statut Approche</span></div>
-               <span className="text-lg font-black italic uppercase truncate w-32 leading-none mt-1">{firstStop.name}</span>
+               <div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Navigation vers départ</span></div>
+               <span className="text-lg font-black italic uppercase truncate w-40 leading-none mt-1">{firstStop.name}</span>
              </div>
            </div>
-           <button onClick={onCancel} className="bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight active:scale-95 transition-all">Retour</button>
+           <button onClick={onCancel} className="bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight active:scale-95 transition-all">Quitter</button>
         </div>
 
-        {/* Map area */}
         <div className="flex-1 rounded-[48px] overflow-hidden border border-white/10 relative shadow-inner">
-          <MapComponent stops={[firstStop]} currentPos={currentPos} heading={currentHeading} dark isDriving height="100%" />
+          <MapComponent stops={[firstStop]} currentPos={currentPos} heading={currentHeading} onRouteInfo={setRouteMeta} dark isDriving height="100%" />
         </div>
 
-        {/* Status Indicators */}
-        <div className="grid grid-cols-2 gap-3 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
-          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-5 flex flex-col gap-1">
-            <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em] flex items-center gap-2"><Flag size={10} /> Distance</span>
-            <div className="text-2xl font-black italic text-slate-100 tabular-nums">
-              {stats ? (stats.dist < 1000 ? `${Math.round(stats.dist)}m` : `${(stats.dist/1000).toFixed(1)}km`) : '--'}
-            </div>
+        <div className="bg-[#10162a] border border-white/10 rounded-[40px] p-8 shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Navigation2 size={80} className="rotate-45" />
           </div>
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[32px] p-5 flex flex-col gap-1">
-            <span className="text-[9px] font-black uppercase text-emerald-400 tracking-[0.2em] flex items-center gap-2"><Clock size={10} /> Heure de départ</span>
-            <div className="text-2xl font-black italic text-emerald-500 tabular-nums">
-              {firstStop.time}
-            </div>
-          </div>
-        </div>
-
-        {/* Main Punctuality Feedback Card */}
-        <div className={`rounded-[40px] p-6 text-center shadow-2xl space-y-4 sm:max-w-md sm:mx-auto sm:w-full border-t border-white/10 relative overflow-hidden transition-colors duration-700
-          ${stats?.status === 'late' ? 'bg-rose-600' : stats?.status === 'tight' ? 'bg-orange-500' : stats?.status === 'early' ? 'bg-blue-600' : 'bg-emerald-600'}`}>
           
-          <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-black/10 rounded-full blur-2xl"></div>
-
-          <div className="space-y-1 relative">
-            <span className="text-[10px] font-black uppercase opacity-70 tracking-widest italic">
-              {stats?.status === 'late' ? 'ARRIVÉE APRÈS LE DÉPART' : stats?.status === 'tight' ? 'PONCTUALITÉ TENDUE' : stats?.status === 'early' ? 'LARGE AVANCE' : 'DANS LES TEMPS'}
-            </span>
-            <div className="text-5xl font-black italic tracking-tighter tabular-nums drop-shadow-md">
-              {stats ? (stats.margin > 0 ? `+${stats.margin}` : stats.margin) : '--'}
-              <span className="text-xl ml-1 opacity-70">MIN</span>
+          <div className="flex flex-col space-y-6 relative">
+            <div className="flex justify-between items-start">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em] mb-2">Heure d'arrivée estimée</span>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-6xl font-black italic tracking-tighter tabular-nums text-white">
+                    {stats?.eta || '--:--'}
+                  </span>
+                  <span className={`text-sm font-black uppercase px-3 py-1 rounded-lg italic border ${
+                    stats?.status === 'late' ? 'bg-rose-600/20 border-rose-500/50 text-rose-400' : 
+                    stats?.status === 'tight' ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 
+                    'bg-emerald-600/20 border-emerald-500/50 text-emerald-400'
+                  }`}>
+                    {stats?.status === 'late' ? 'Retard' : stats?.status === 'tight' ? 'Limite' : 'En temps'}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Départ prévu</span>
+                <span className="text-2xl font-black italic text-slate-300 tabular-nums">{firstStop.time}</span>
+              </div>
             </div>
-            <p className="text-[9px] font-bold uppercase tracking-tight opacity-80">Marge calculée par rapport au départ de {firstStop.time}</p>
-          </div>
 
-          <div className="flex gap-2">
-            <button onClick={onArrived} className="flex-1 bg-white text-slate-900 py-4 rounded-3xl font-black uppercase italic tracking-tighter flex items-center justify-center gap-2 active:scale-[0.98] shadow-xl transition-all">
-              <PlayCircle size={22} className={stats?.status === 'late' ? 'text-rose-600' : 'text-emerald-600'} />
-              Démarrer Maintenant
-            </button>
+            <div className="h-px bg-white/5 w-full"></div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Locate size={10} /> Distance</span>
+                  <span className="text-xl font-black italic text-slate-200">{stats?.distance || '--'} km</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Hourglass size={10} /> Marge</span>
+                  <span className={`text-xl font-black italic ${stats?.margin && stats.margin < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                    {stats?.margin !== undefined ? (stats.margin > 0 ? `+${stats.margin}` : stats.margin) : '--'} min
+                  </span>
+                </div>
+              </div>
+              
+              <button onClick={onArrived} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-4 rounded-2xl font-black uppercase italic tracking-tighter flex items-center gap-2 shadow-lg shadow-blue-900/40 active:scale-95 transition-all">
+                <PlayCircle size={20} />
+                Arrivé
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 italic uppercase bg-white/5 p-2 rounded-xl">
+              <Zap size={10} className="text-amber-400" />
+              Calculé via itinéraire le plus rapide • Limitation de vitesse incluse
+            </div>
           </div>
         </div>
       </div>
@@ -879,7 +978,6 @@ const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArr
   );
 };
 
-// --- Sub-component: Driving View ---
 interface DrivingViewProps { line: BusLine; onExit: () => void; onStop: () => void; onFinish: (report: CourseReport) => void; initialHeading: number | null; }
 const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinish, initialHeading }) => {
   const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(null);
@@ -889,6 +987,7 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
   const [actualArrivalTimes, setActualArrivalTimes] = useState<string[]>([]);
   const [boardedCounts, setBoardedCounts] = useState<number[]>([]);
   const [droppedCounts, setDroppedCounts] = useState<number[]>([]);
+  const [geolocatedStatus, setGeolocatedStatus] = useState<boolean[]>([]);
   const [currentBoarding, setCurrentBoarding] = useState(0);
   const [currentDropped, setCurrentDropped] = useState(0);
   const [capturedArrivalTime, setCapturedArrivalTime] = useState<string | null>(null);
@@ -908,6 +1007,15 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
   }, []);
 
   const currentStop = line.stops[nextStopIdx];
+  
+  const secondsUntilDeparture = useMemo(() => {
+    if (!currentStop || nextStopIdx !== 0) return null;
+    const [h, m] = currentStop.time.split(':').map(Number);
+    const scheduled = new Date(now);
+    scheduled.setHours(h, m, 0, 0);
+    return Math.floor((scheduled.getTime() - now.getTime()) / 1000);
+  }, [currentStop, nextStopIdx, now]);
+
   const scheduleOffset = useMemo(() => {
     if (!currentStop) return 0;
     const [h, m] = currentStop.time.split(':').map(Number);
@@ -919,26 +1027,62 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
   const isAtStation = useMemo(() => distanceRemaining !== null && distanceRemaining <= 50, [distanceRemaining]);
 
   const handleNext = useCallback(() => {
+    const isReached = capturedArrivalTime !== null;
     const time = capturedArrivalTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
     const arrivals = [...actualArrivalTimes, time];
     const boarded = [...boardedCounts, currentBoarding];
     const dropped = [...droppedCounts, currentDropped];
-    setActualArrivalTimes(arrivals); setBoardedCounts(boarded); setDroppedCounts(dropped);
-    setCurrentBoarding(0); setCurrentDropped(0); setCapturedArrivalTime(null); wasAtStationRef.current = false;
-    if (nextStopIdx < line.stops.length - 1) setNextStopIdx(prev => prev + 1);
-    else {
+    const geos = [...geolocatedStatus, isReached];
+
+    setActualArrivalTimes(arrivals); 
+    setBoardedCounts(boarded); 
+    setDroppedCounts(dropped);
+    setGeolocatedStatus(geos);
+    
+    setCurrentBoarding(0); 
+    setCurrentDropped(0); 
+    setCapturedArrivalTime(null); 
+    wasAtStationRef.current = false;
+    
+    if (nextStopIdx < line.stops.length - 1) {
+      setNextStopIdx(prev => prev + 1);
+    } else {
       const diff = Math.floor((new Date().getTime() - startTime.current.getTime()) / 60000);
-      onFinish({ lineName: line.name, lineNumber: line.number, startTime: startTime.current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), endTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), duration: `${Math.floor(diff/60)}h ${diff%60}min`, stops: line.stops.map((s, idx) => {
-        const [schH, schM] = s.time.split(':').map(Number); const [actH, actM] = (arrivals[idx] || "00:00").split(':').map(Number);
-        const d = (actH * 60 + actM) - (schH * 60 + schM);
-        return { stopName: s.name, scheduledTime: s.time, actualTime: arrivals[idx] || "--:--", status: d > 2 ? 'late' : d < -2 ? 'early' : 'on-time', diffMinutes: Math.abs(d), boardedCount: boarded[idx] || 0, droppedCount: dropped[idx] || 0 };
-      }) });
+      onFinish({ 
+        lineName: line.name, 
+        lineNumber: line.number, 
+        startTime: startTime.current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+        endTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+        duration: `${Math.floor(diff/60)}h ${diff%60}min`, 
+        stops: line.stops.map((s, idx) => {
+          const [schH, schM] = s.time.split(':').map(Number); 
+          const [actH, actM] = (arrivals[idx] || "00:00").split(':').map(Number);
+          const wasGeolocated = geos[idx];
+          const d = (actH * 60 + actM) - (schH * 60 + schM);
+          
+          return { 
+            stopName: s.name, 
+            scheduledTime: s.time, 
+            actualTime: arrivals[idx] || "--:--", 
+            status: !wasGeolocated ? 'not-served' : (d > 2 ? 'late' : d < -2 ? 'early' : 'on-time'), 
+            diffMinutes: Math.abs(d), 
+            boardedCount: boarded[idx] || 0, 
+            droppedCount: dropped[idx] || 0 
+          };
+        }) 
+      });
     }
-  }, [nextStopIdx, line, actualArrivalTimes, boardedCounts, droppedCounts, currentBoarding, currentDropped, capturedArrivalTime, onFinish]);
+  }, [nextStopIdx, line, actualArrivalTimes, boardedCounts, droppedCounts, geolocatedStatus, currentBoarding, currentDropped, capturedArrivalTime, onFinish]);
 
   useEffect(() => {
-    if (isAtStation) { wasAtStationRef.current = true; if (!capturedArrivalTime) setCapturedArrivalTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })); }
-    else if (wasAtStationRef.current && distanceRemaining !== null && distanceRemaining > 50) handleNext();
+    if (isAtStation) { 
+      wasAtStationRef.current = true; 
+      if (!capturedArrivalTime) setCapturedArrivalTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })); 
+    }
+    else if (wasAtStationRef.current && distanceRemaining !== null && distanceRemaining > 50) {
+      handleNext();
+    }
   }, [isAtStation, distanceRemaining, capturedArrivalTime, handleNext]);
 
   return (
@@ -956,7 +1100,27 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
           <MapComponent stops={line.stops} currentPos={currentPos} heading={currentHeading} dark isDriving height="100%" />
         </div>
         <div className={`transition-all rounded-[40px] p-5 flex items-center justify-between shadow-2xl shrink-0 ${isAtStation ? 'bg-emerald-900/40 border-emerald-500 border' : 'bg-[#10162a] border-white/10 border'}`}>
-          <div className="flex gap-4 items-center min-w-0"><div className="w-14 h-14 rounded-[20px] flex flex-col items-center justify-center font-black shrink-0 border-b-8 bg-blue-600 border-blue-800 text-white italic"><span className="text-2xl leading-none">{line.number}</span></div><div className="flex flex-col min-w-0"><div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 ${isAtStation ? 'text-emerald-400' : 'text-blue-500'}`}>{isAtStation ? 'Arrêt en cours' : 'Prochain arrêt'}</div><h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none truncate">{currentStop?.name}</h2></div></div>
+          <div className="flex gap-4 items-center min-w-0">
+            <div className="w-14 h-14 rounded-[20px] flex flex-col items-center justify-center font-black shrink-0 border-b-8 bg-blue-600 border-blue-800 text-white italic">
+              <span className="text-2xl leading-none">{line.number}</span>
+            </div>
+            <div className="flex flex-col min-w-0">
+              <div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 ${isAtStation ? 'text-emerald-400' : 'text-blue-500'}`}>
+                {isAtStation ? 'Arrêt en cours' : 'Prochain arrêt'}
+              </div>
+              <h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none truncate">
+                {currentStop?.name}
+              </h2>
+              {currentStop?.annotation && (
+                <div className="flex items-center gap-1 mt-1 opacity-80">
+                  <MessageSquareText size={10} className="text-blue-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-slate-400 truncate leading-none uppercase">
+                    {currentStop.annotation}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
           <div className="text-3xl font-black italic text-slate-200 tabular-nums">{currentStop?.time}</div>
         </div>
         <div className="grid grid-cols-2 gap-3 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
@@ -972,7 +1136,16 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinis
         <div className="flex gap-4 h-[12%] sm:h-20 shrink-0 pb-2 sm:max-w-md sm:mx-auto sm:w-full">
           <button onClick={() => setNextStopIdx(p => Math.max(0, p - 1))} className="flex-1 bg-white/5 rounded-[32px] flex items-center justify-center text-slate-600 border border-white/5 active:scale-90 transition-all"><ChevronLeft size={32} /></button>
           <button onClick={handleNext} className={`flex-[3] border-b-[8px] rounded-[32px] flex items-center justify-center transition-all shadow-2xl active:scale-95 ${nextStopIdx === line.stops.length - 1 ? 'bg-rose-600 border-rose-800' : 'bg-blue-600 border-blue-800'}`}>
-            <span className="text-xl font-black italic uppercase tracking-tight flex items-center gap-2">{nextStopIdx === line.stops.length - 1 ? 'Terminer' : (isAtStation ? 'Partir' : 'Valider Manuel')}</span>
+            <span className="text-xl font-black italic uppercase tracking-tight flex items-center gap-2">
+              {nextStopIdx === line.stops.length - 1 ? 'Terminer' : 
+                (isAtStation ? 
+                  (nextStopIdx === 0 && secondsUntilDeparture !== null && secondsUntilDeparture > 0 ? 
+                    `Départ dans ${Math.floor(secondsUntilDeparture / 60)}:${(secondsUntilDeparture % 60).toString().padStart(2, '0')}` : 
+                    (nextStopIdx === 0 ? 'Départ' : 'Partir')
+                  ) : 
+                'Valider Manuel')
+              }
+            </span>
           </button>
         </div>
       </div>

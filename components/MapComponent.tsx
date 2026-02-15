@@ -10,6 +10,7 @@ interface MapComponentProps {
   focusLocation?: { lat: number; lng: number } | null;
   height?: string;
   onMapClick?: (lat: number, lng: number) => void;
+  onRouteInfo?: (info: { distance: number; duration: number }) => void;
   dark?: boolean;
   satellite?: boolean;
   isDriving?: boolean;
@@ -23,7 +24,8 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
   heading = 0,
   focusLocation,
   height = "200px", 
-  onMapClick, 
+  onMapClick,
+  onRouteInfo,
   dark = false, 
   satellite = false,
   isDriving = false 
@@ -36,7 +38,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
   const [followUser, setFollowUser] = useState(true);
   const containerId = useMemo(() => "map-container-" + Math.random().toString(36).substring(2, 9), []);
 
-  const fetchRoute = async (points: Stop[]) => {
+  const fetchRoute = async (points: {lat: number, lng: number}[]) => {
     if (points.length < 2) return null;
     const cacheKey = points.map(p => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('|');
     if (routeCache.has(cacheKey)) return routeCache.get(cacheKey);
@@ -52,13 +54,20 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
           const data = await response.json();
           if (data.code === 'Ok' && data.routes.length > 0) {
             const geometry = data.routes[0].geometry;
-            routeCache.set(cacheKey, geometry);
-            return geometry;
+            const distance = data.routes[0].distance; // meters
+            const duration = data.routes[0].duration; // seconds
+            const result = { geometry, distance, duration };
+            routeCache.set(cacheKey, result);
+            return result;
           }
         }
       } catch (error) { console.warn(error); }
     }
-    return { type: 'LineString', coordinates: points.map(p => [p.lng, p.lat]) };
+    return { 
+      geometry: { type: 'LineString', coordinates: points.map(p => [p.lng, p.lat]) },
+      distance: 0,
+      duration: 0
+    };
   };
 
   useEffect(() => {
@@ -108,12 +117,19 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     const updateMapUI = async () => {
       markersLayerRef.current.clearLayers();
       routeLayerRef.current.clearLayers();
-      if (stops.length >= 2) {
-        const geometry = await fetchRoute(stops);
-        if (geometry) {
-          L.geoJSON(geometry, { style: { color: satellite ? '#facc15' : (dark ? '#3b82f6' : '#2563eb'), weight: 6, opacity: 0.8 } }).addTo(routeLayerRef.current);
+      
+      const routePoints = currentPos ? [{lat: currentPos.lat, lng: currentPos.lng}, ...stops] : stops;
+
+      if (routePoints.length >= 2) {
+        const routeData = await fetchRoute(routePoints);
+        if (routeData) {
+          L.geoJSON(routeData.geometry, { style: { color: satellite ? '#facc15' : (dark ? '#3b82f6' : '#2563eb'), weight: 6, opacity: 0.8 } }).addTo(routeLayerRef.current);
+          if (onRouteInfo) {
+            onRouteInfo({ distance: routeData.distance, duration: routeData.duration });
+          }
         }
       }
+      
       stops.forEach((stop, idx) => {
         const isFirst = idx === 0;
         const isLast = idx === stops.length - 1;
@@ -125,26 +141,45 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
         L.marker([stop.lat, stop.lng], { icon }).addTo(markersLayerRef.current);
       });
       if (!isDriving && stops.length > 0 && !focusLocation) {
-        map.fitBounds(L.latLngBounds(stops.map(s => [s.lat, s.lng])), { padding: [50, 50], maxZoom: 16 });
+        map.fitBounds(L.latLngBounds(routePoints.map(s => [s.lat, s.lng])), { padding: [50, 50], maxZoom: 16 });
       }
     };
     updateMapUI();
-  }, [stops, dark, satellite, isDriving]);
+  }, [stops, currentPos, dark, satellite, isDriving]);
 
   useEffect(() => {
     const map = mapRef.current;
     const L = (window as any).L;
     if (!map || !L || !currentPos) return;
-    if (busMarkerRef.current) busMarkerRef.current.setLatLng([currentPos.lat, currentPos.lng]);
-    else {
-      const busIcon = L.divIcon({
-        className: 'bus-icon',
-        html: `<div style="background:#3b82f6; width:36px; height:36px; border-radius:50%; border:4px solid white; display:flex; align-items:center; justify-content:center; transform:rotate(${heading || 0}deg);"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M4 16c0 1.1.9 2 2 2h1v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h6v1c0 .6.4 1 1 1h1c.6 0 1-.4 1-1v-1h1c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v8zM6 8h12v4H6V8z"/></svg></div>`,
-        iconSize: [36, 36], iconAnchor: [18, 18]
+    
+    const navIconHtml = `
+      <div style="transform: rotate(${heading || 0}deg); transition: transform 0.2s ease-out; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="20" cy="20" r="16" fill="white" fill-opacity="0.9"/>
+          <path d="M20 6L28 30L20 25L12 30L20 6Z" fill="#2563eb"/>
+          <path d="M20 6V25L12 30L20 6Z" fill="#1d4ed8"/>
+        </svg>
+      </div>
+    `;
+
+    if (busMarkerRef.current) {
+      busMarkerRef.current.setLatLng([currentPos.lat, currentPos.lng]);
+      busMarkerRef.current.setIcon(L.divIcon({
+        className: 'nav-pointer',
+        html: navIconHtml,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      }));
+    } else {
+      const navIcon = L.divIcon({
+        className: 'nav-pointer',
+        html: navIconHtml,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
       });
-      // Fix: Used 'icon: busIcon' instead of the shorthand 'icon' which was not defined in this scope.
-      busMarkerRef.current = L.marker([currentPos.lat, currentPos.lng], { icon: busIcon, zIndexOffset: 1000 }).addTo(map);
+      busMarkerRef.current = L.marker([currentPos.lat, currentPos.lng], { icon: navIcon, zIndexOffset: 1000 }).addTo(map);
     }
+    
     if (isDriving && followUser) map.setView([currentPos.lat, currentPos.lng], map.getZoom(), { animate: false });
   }, [currentPos, isDriving, followUser, heading]);
 
