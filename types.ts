@@ -16,19 +16,24 @@ export interface BusLine {
   name: string;
   stops: Stop[];
   type?: LineType;
+  info?: string;
 }
 
 export interface StopReport {
   stopName: string;
   scheduledTime: string;
-  actualTime: string;
+  actualArrivalTime: string;
+  actualDepartureTime?: string;
   status: 'early' | 'on-time' | 'late' | 'not-served';
-  diffMinutes: number;
+  isManual?: boolean; // Indique si l'arrêt a été forcé manuellement
+  diffMinutes: number; // Différence par rapport à l'arrivée prévue
   boardedCount: number;
   droppedCount: number;
 }
 
 export interface CourseReport {
+  id?: string;
+  date: string;
   lineName: string;
   lineNumber: string;
   startTime: string;
@@ -47,6 +52,8 @@ export interface ManualStop {
 }
 
 export interface ManualReport {
+  id?: string;
+  date: string;
   startTime: string;
   endTime: string;
   duration: string;

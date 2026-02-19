@@ -1,20 +1,15 @@
 
 {
   "short_name": "GEOligne",
-  "name": "GEOligne: Gestionnaire de Flotte Intelligent",
+  "name": "GEOligne: Votre réseau, bien orienté",
   "description": "Solution complète de gestion de lignes de bus et navigation en temps réel pour conducteurs.",
   "lang": "fr-FR",
   "dir": "ltr",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3448/3448339.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "https://cdn-icons-png.flaticon.com/512/3448/3448339.png",
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiI+CiAgPGNpcmNsZSBjeD0iMjU2IiBjeT0iMjU2IiByPSIyNDAiIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0iIzI1NjNlYiIgc3Ryb2tlLXdpZHRoPSIyNCIvPgogIDxwYXRoIGZpbGw9IiMyNTYzZWIiIGQ9Ik0xNjAgMTYwYy0xNy42IDAtMzIgMTQuNC0zMiAzMnYxNDRjMCAxNy42IDE0LjQgMzIgMzIgMzJ2MzJjMCAxNy42IDE0LjQgMzIgMzIgMzJoMzJjMTcuNiAwIDMyLTE0LjQgMzItMzJ2LTMyaDY0djMyYzAgMTcuNiAxNC40IDMyIDMyIDMyaDMyYzE3LjYgMCAzMi0xNC40IDMyLTMydi0zMmMxNy42IDAgMzItMTQuNCAzMi0zMlYxOTJjMC0xNy42LTE0LjQtMzItMzItMzJIMTYwem0xOTIgMTI4SDE2MHYtOTZoMTkydjk2em0tMTQ0IDQ4Yy0xMy4zIDAtMjQtMTAuNy0yNC0yNHMxMC43LTI0IDI0LTI0IDI0IDEwLjcgMjQgMjQtMTAuNyAyNC0yNCAyNHptMTI4IDBjLTEzLjMgMC0yNC0xMC43LTI0LTI0czEwLjctMjQgMjQtMjQgMjQgMTAuNyAyNCAyNC0xMC43IDI0LTI0IDI0eiIvPgogIDxjaXJjbGUgY3g9IjQwMCIgY3k9IjExMiIgcj0iMzIiIGZpbGw9IiMyNTYzZWIiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSI4Ii8+Cjwvc3ZnPg==",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ],

@@ -1,6 +1,6 @@
 {
-  "name": "GEOligne: Gestionnaire de Flotte Intelligent",
-  "description": "Un outil complet de gestion de lignes de bus et de navigation pour conducteurs avec suivi en temps réel, optimisation d'itinéraire et suggestions d'horaires par IA.",
+  "name": "GEOligne: Votre réseau, bien orienté",
+  "description": "GEOligne : Solution de gestion de lignes de bus et d'autocars, intégrant la planification d'horaires, l'aide à la navigation pour les conducteurs et le suivi de la ligne en temps réel.",
   "requestFramePermissions": [
     "geolocation"
   ]

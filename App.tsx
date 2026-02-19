@@ -1,103 +1,45 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { 
-  PlusCircle, 
-  ChevronLeft, 
-  Play, 
-  Clock, 
-  Bus, 
-  Save,
-  Navigation2,
-  Trash2,
-  MapPin,
-  X,
-  TrendingUp,
-  TrendingDown,
-  CheckCircle2,
-  Flag,
-  MapPinCheck,
-  LogOut,
-  CheckSquare,
-  Crosshair,
-  ArrowLeft,
-  FileUp,
-  FileDown,
-  Timer,
-  CalendarDays,
-  Award,
-  Share2,
-  Home,
-  Hourglass,
-  Zap,
-  AlertTriangle,
-  Users,
-  Plus,
-  Minus,
-  AlertCircle,
-  UserMinus,
-  UserPlus,
-  FileText,
-  RotateCcw,
-  Navigation,
-  PlayCircle,
-  Map as MapIcon,
-  CircleDot,
-  Pencil,
-  Smartphone,
-  Tablet,
-  Monitor,
-  Layers,
-  Globe,
-  ChevronUp,
-  ChevronDown,
-  Activity,
-  School,
-  Building2,
-  Map as MapPath,
-  Milestone,
-  MessageSquareText,
-  Ban,
-  Locate
-} from 'lucide-react';
-import { AppView, BusLine, Stop, CourseReport, StopReport, ManualStop, ManualReport, LineType } from './types';
-import { INITIAL_LINES } from './constants';
-import MapComponent from './components/MapComponent';
+import { AppView, BusLine, Stop, CourseReport, ManualReport, LineType } from './types';
+import { useGeolocation } from './hooks/useGeolocation';
+import { useBusLines } from './hooks/useBusLines';
+import { useWakeLock } from './hooks/useWakeLock';
+import { useReports } from './hooks/useReports';
+import { useManualReports } from './hooks/useManualReports';
+import { getDistance } from './utils/geoUtils';
 
-const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371e3;
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) *
-    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
-const STORAGE_KEY = 'geoligne_bus_lines';
-
-const LINE_TYPES: LineType[] = ['Scolaire', 'Urbain', 'Interurbain', 'Grande ligne'];
+// Components
+import Header from './components/Layout/Header';
+import HomeView from './components/Views/HomeView';
+import DetailView from './components/Views/DetailView';
+import CreateView from './components/Views/CreateView';
+import PrepView from './components/Views/PrepView';
+import DrivingView from './components/Views/DrivingView';
+import SummaryView from './components/Views/SummaryView';
+import GeoManuelView from './components/Views/GeoManuelView';
+import ManualSummaryView from './components/Views/ManualSummaryView';
+import TimeCalculator from './components/Tools/TimeCalculator';
+import PassengerCounter from './components/Tools/PassengerCounter';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.HOME);
-  
-  const [lines, setLines] = useState<BusLine[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : INITIAL_LINES;
-  });
+  const [isTimeCalcOpen, setIsTimeCalcOpen] = useState(false);
+  const [isPassengerCounterOpen, setIsPassengerCounterOpen] = useState(false);
+  const { lines, addLine, deleteLine, updateLine, setLines } = useBusLines();
+  const { reports, addReport, deleteReport } = useReports();
+  const { manualReports, addManualReport, deleteManualReport } = useManualReports();
+  const { location: userLocation, heading: userHeading } = useGeolocation();
   
   const [selectedLine, setSelectedLine] = useState<BusLine | null>(null);
-  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [userHeading, setUserHeading] = useState<number | null>(null);
-  const [newLine, setNewLine] = useState<Partial<BusLine>>({ number: '', name: '', stops: [], type: 'Urbain' });
+  const [editingLine, setEditingLine] = useState<Partial<BusLine>>({});
   const [lastReport, setLastReport] = useState<CourseReport | null>(null);
   const [lastManualReport, setLastManualReport] = useState<ManualReport | null>(null);
-  const [mapFocus, setMapFocus] = useState<{ lat: number; lng: number } | null>(null);
   const [screenType, setScreenType] = useState<'Mobile' | 'Tablette' | 'Ordinateur'>('Mobile');
-  const [isSatellite, setIsSatellite] = useState(false);
+  
+  // Persistance du temps de début pour le service en cours
+  const [courseStartTimestamp, setCourseStartTimestamp] = useState<number | null>(null);
+
+  useWakeLock([AppView.PREP, AppView.DRIVING, AppView.GEOMANUEL].includes(view));
 
   useEffect(() => {
     const detectScreen = () => {
@@ -111,116 +53,26 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', detectScreen);
   }, []);
 
-  const lineStats = useMemo(() => {
-    if (!selectedLine || selectedLine.stops.length < 2) return null;
-    const stops = selectedLine.stops;
-    const firstStop = stops[0];
-    const lastStop = stops[stops.length - 1];
-
-    const parseTime = (t: string) => {
-      const [h, m] = t.split(':').map(Number);
-      return h * 60 + m;
-    };
-
-    const diffMin = parseTime(lastStop.time) - parseTime(firstStop.time);
-    const duration = diffMin >= 60 
-      ? `${Math.floor(diffMin / 60)}h${diffMin % 60 > 0 ? (diffMin % 60).toString().padStart(2, '0') : ''}` 
-      : `${diffMin} min`;
-
-    let totalDist = 0;
-    for (let i = 0; i < stops.length - 1; i++) {
-      totalDist += getDistance(stops[i].lat, stops[i].lng, stops[i + 1].lat, stops[i + 1].lng);
-    }
-    const distance = (totalDist / 1000).toFixed(1) + ' km';
-
-    return { duration, distance };
-  }, [selectedLine]);
-
-  useEffect(() => {
-    let wakeLock: any = null;
-    const requestWakeLock = async () => {
-      if ('wakeLock' in navigator) {
-        try { 
-          wakeLock = await (navigator as any).wakeLock.request('screen'); 
-        } 
-        catch (err: any) { 
-          console.warn("Wake Lock indisponible:", err.message); 
-        }
-      }
-    };
-    const handleVisibilityChange = async () => {
-      if (wakeLock !== null && document.visibilityState === 'visible') await requestWakeLock();
-    };
-    if (view === AppView.PREP || view === AppView.DRIVING || view === AppView.GEOMANUEL) {
-      requestWakeLock();
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-    }
-    return () => {
-      if (wakeLock) {
-        try { wakeLock.release(); } catch(e) {}
-        wakeLock = null;
-      }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [view]);
-
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(lines)); }, [lines]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    }, 1000);
-    if (navigator.geolocation) {
-      const watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          if (pos.coords.heading !== null) {
-            setUserHeading(pos.coords.heading);
-          }
-        },
-        (err) => console.error("Geolocation error:", err),
-        { enableHighAccuracy: true }
-      );
-      return () => { clearInterval(timer); navigator.geolocation.clearWatch(watchId); };
-    }
-    return () => clearInterval(timer);
-  }, []);
-
-  const generateId = () => Math.random().toString(36).substr(2, 9);
-
-  const handleSelectLine = (line: BusLine) => { setSelectedLine(line); setMapFocus(null); setIsSatellite(false); setView(AppView.DETAIL); };
-  
-  const handleCreateLine = () => { 
-    setNewLine({ number: '', name: '', stops: [], type: 'Urbain' }); 
-    setView(AppView.CREATE); 
+  const handleSelectLine = (line: BusLine) => { 
+    setSelectedLine(line); 
+    setView(AppView.DETAIL); 
   };
-  
+
   const handleEditLine = (e: React.MouseEvent, line: BusLine) => {
     e.stopPropagation();
-    const stopsWithIds = line.stops.map(s => ({ ...s, id: s.id || generateId() }));
-    setNewLine({ ...line, stops: stopsWithIds, type: line.type || 'Urbain' });
+    setEditingLine({ ...line });
     setView(AppView.CREATE);
   };
 
-  const exportToXML = () => {
-    let xmlString = '<?xml version="1.0" encoding="UTF-8"?>\n<geoligne>\n';
-    lines.forEach(line => {
-      xmlString += `  <line id="${line.id}">\n    <number>${line.number}</number>\n    <name>${line.name}</name>\n    <type>${line.type || 'Urbain'}</type>\n    <stops>\n`;
-      line.stops.forEach(stop => {
-        xmlString += `      <stop>\n        <name>${stop.name}</name>\n        <time>${stop.time}</time>\n        <lat>${stop.lat}</lat>\n        <lng>${stop.lng}</lng>\n        <annotation>${stop.annotation || ''}</annotation>\n      </stop>\n`;
-      });
-      xmlString += `    </stops>\n  </line>\n`;
-    });
-    xmlString += '</geoligne>';
-    const blob = new Blob([xmlString], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `geoligne_export_${new Date().toISOString().split('T')[0]}.xml`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const handleCreateLine = () => {
+    setEditingLine({ number: '', name: '', stops: [], type: 'Urbain', info: '' });
+    setView(AppView.CREATE);
+  };
+
+  const handleSaveLine = (line: BusLine) => {
+    if (line.id) updateLine(line.id, line);
+    else addLine({ ...line, id: Math.random().toString(36).substr(2, 9) });
+    setView(AppView.HOME);
   };
 
   const handleImportXML = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -231,20 +83,16 @@ const App: React.FC = () => {
       const xmlText = event.target?.result as string;
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-      const importedLines: BusLine[] = [];
+      const imported: BusLine[] = [];
       const lineElements = xmlDoc.getElementsByTagName("line");
       for (let i = 0; i < lineElements.length; i++) {
         const lineEl = lineElements[i];
-        const id = lineEl.getAttribute("id") || generateId();
-        const number = lineEl.getElementsByTagName("number")[0]?.textContent || "??";
-        const name = lineEl.getElementsByTagName("name")[0]?.textContent || "Inconnu";
-        const typeStr = lineEl.getElementsByTagName("type")[0]?.textContent as LineType || 'Urbain';
         const stops: Stop[] = [];
         const stopElements = lineEl.getElementsByTagName("stop");
         for (let j = 0; j < stopElements.length; j++) {
           const stopEl = stopElements[j];
           stops.push({
-            id: generateId(),
+            id: Math.random().toString(36).substr(2, 9),
             name: stopEl.getElementsByTagName("name")[0]?.textContent || "Station",
             time: stopEl.getElementsByTagName("time")[0]?.textContent || "00:00",
             lat: parseFloat(stopEl.getElementsByTagName("lat")[0]?.textContent || "0"),
@@ -252,903 +100,216 @@ const App: React.FC = () => {
             annotation: stopEl.getElementsByTagName("annotation")[0]?.textContent || "",
           });
         }
-        importedLines.push({ id, number, name, stops, type: typeStr });
+        imported.push({
+          id: lineEl.getAttribute("id") || Math.random().toString(36).substr(2, 9),
+          number: lineEl.getElementsByTagName("number")[0]?.textContent || "??",
+          name: lineEl.getElementsByTagName("name")[0]?.textContent || "Import",
+          info: lineEl.getElementsByTagName("info")[0]?.textContent || "",
+          stops,
+          type: (lineEl.getElementsByTagName("type")[0]?.textContent as LineType) || 'Urbain'
+        });
       }
-      if (importedLines.length > 0) {
-        if (window.confirm(`Importer ${importedLines.length} lignes ?`)) setLines(importedLines);
-      }
-      e.target.value = "";
+      if (imported.length > 0 && window.confirm(`Importer ${imported.length} itinéraires ?`)) setLines(prev => [...prev, ...imported]);
     };
     reader.readAsText(file);
   };
 
+  const handleExportToXML = () => {
+    let xml = '<?xml version="1.0" encoding="UTF-8"?><geoligne>';
+    lines.forEach(l => {
+      xml += `<line id="${l.id}"><number>${l.number}</number><name>${l.name}</name><info>${l.info || ''}</info><type>${l.type || 'Urbain'}</type><stops>`;
+      l.stops.forEach(s => {
+        xml += `<stop><name>${s.name}</name><time>${s.time}</time><lat>${s.lat}</lat><lng>${s.lng}</lng><annotation>${s.annotation || ''}</annotation></stop>`;
+      });
+      xml += `</stops></line>`;
+    });
+    xml += '</geoligne>';
+    const blob = new Blob([xml], { type: 'application/xml' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `geoligne_export_${new Date().toISOString().split('T')[0]}.xml`;
+    link.click();
+  };
+
   const startServiceLogic = () => {
-    if (!selectedLine || !userLocation) { setView(AppView.DRIVING); return; }
+    if (!selectedLine || !userLocation) { 
+      setCourseStartTimestamp(Date.now());
+      setView(AppView.DRIVING); 
+      return; 
+    }
     const distToFirst = getDistance(userLocation.lat, userLocation.lng, selectedLine.stops[0].lat, selectedLine.stops[0].lng);
-    if (distToFirst > 50) setView(AppView.PREP);
-    else setView(AppView.DRIVING);
+    if (distToFirst > 20) setView(AppView.PREP);
+    else {
+      setCourseStartTimestamp(Date.now());
+      setView(AppView.DRIVING);
+    }
+  };
+
+  const handleCourseFinished = useCallback((report: CourseReport) => { 
+    const reportWithDate = { ...report, date: new Date().toLocaleDateString('fr-FR') };
+    setLastReport(reportWithDate); 
+    addReport(reportWithDate);
+    setCourseStartTimestamp(null);
+    setView(AppView.SUMMARY); 
+  }, [addReport]);
+
+  const handleViewPastReport = (report: CourseReport) => {
+    setLastReport(report);
+    setView(AppView.SUMMARY);
+  };
+
+  const handleManualFinished = (report: ManualReport) => { 
+    const reportWithDate = { ...report, date: new Date().toLocaleDateString('fr-FR') };
+    setLastManualReport(reportWithDate);
+    addManualReport(reportWithDate);
+    setView(AppView.MANUAL_SUMMARY); 
+  };
+
+  const handleViewPastManualReport = (report: ManualReport) => {
+    setLastManualReport(report);
+    setView(AppView.MANUAL_SUMMARY);
   };
 
   const handleConvertManualToLine = () => {
     if (!lastManualReport) return;
-    const stopsFromManual: Stop[] = lastManualReport.stops.map((ms, idx) => ({
-      id: generateId(),
-      name: `Arrêt ${idx + 1}`,
-      time: ms.time,
-      lat: ms.lat,
-      lng: ms.lng
-    }));
-    setNewLine({ number: 'M1', name: `Itinéraire Manuel ${new Date().toLocaleDateString()}`, stops: stopsFromManual, type: 'Urbain' });
+    setEditingLine({
+      number: 'M1',
+      name: `Itinéraire Manuel ${new Date().toLocaleDateString()}`,
+      stops: lastManualReport.stops.map((ms, idx) => ({
+        id: Math.random().toString(36).substr(2, 9),
+        name: `Arrêt ${idx + 1}`,
+        time: ms.time,
+        lat: ms.lat,
+        lng: ms.lng
+      })),
+      type: 'Urbain',
+      info: 'Traçage issu d\'un relevé manuel GeoManuel.'
+    });
     setView(AppView.CREATE);
   };
 
-  const saveLine = () => {
-    if (!newLine.number || !newLine.name || !newLine.stops?.length) return;
-    if (newLine.id) {
-      setLines(prev => prev.map(l => l.id === newLine.id ? (newLine as BusLine) : l));
-    } else {
-      const lineToAdd: BusLine = { 
-        id: generateId(), 
-        number: newLine.number!, 
-        name: newLine.name!, 
-        stops: newLine.stops as Stop[],
-        type: newLine.type as LineType
-      };
-      setLines(prev => [...prev, lineToAdd]);
-    }
-    setView(AppView.HOME);
-  };
-
-  const deleteLine = (e: React.MouseEvent, id: string) => { 
-    e.stopPropagation(); 
-    if (window.confirm("Voulez-vous vraiment supprimer cet itinéraire ?")) setLines(prev => prev.filter(l => l.id !== id)); 
-  };
-
-  const handleMapClickOnCreate = (lat: number, lng: number) => {
-    const newStop: Stop = { id: generateId(), name: `Arrêt ${ (newLine.stops?.length || 0) + 1}`, time: '12:00', lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)) };
-    setNewLine(prev => ({ ...prev, stops: [...(prev.stops || []), newStop] }));
-  };
-
-  const addStopManually = () => {
-    const defaultLat = userLocation?.lat || 48.8566;
-    const defaultLng = userLocation?.lng || 2.3522;
-    setNewLine(prev => ({ ...prev, stops: [...(prev.stops || []), { id: generateId(), name: 'Nouvel arrêt', time: '12:00', lat: defaultLat, lng: defaultLng }] }));
-  };
-
-  const moveStop = (idx: number, direction: 'up' | 'down') => {
-    setNewLine(prev => {
-      const stops = [...(prev.stops || [])];
-      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (newIdx < 0 || newIdx >= stops.length) return prev;
-      [stops[idx], stops[newIdx]] = [stops[newIdx], stops[idx]];
-      return { ...prev, stops };
-    });
-  };
-
-  const updateStop = (idx: number, field: keyof Stop, value: string) => {
-    setNewLine(prev => {
-      const stops = [...(prev.stops || [])];
-      let val: string | number = value;
-      if (field === 'lat' || field === 'lng') val = parseFloat(value) || 0;
-      stops[idx] = { ...stops[idx], [field]: val };
-      return { ...prev, stops };
-    });
-  };
-
-  const removeStop = (idx: number) => { setNewLine(prev => ({ ...prev, stops: prev.stops?.filter((_, i) => i !== idx) })); };
-  const handleCourseFinished = (report: CourseReport) => { setLastReport(report); setView(AppView.SUMMARY); };
-  const handleManualCourseFinished = (report: ManualReport) => { setLastManualReport(report); setView(AppView.MANUAL_SUMMARY); };
-  const handleExportPDF = () => { window.print(); };
-
-  const getTypeIcon = (type?: LineType) => {
-    switch (type) {
-      case 'Scolaire': return <School size={14} />;
-      case 'Urbain': return <Building2 size={14} />;
-      case 'Interurbain': return <MapPath size={14} />;
-      case 'Grande ligne': return <Milestone size={14} />;
-      default: return <Bus size={14} />;
-    }
-  };
-
-  const getTypeColorClass = (type?: LineType) => {
-    switch (type) {
-      case 'Scolaire': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'Urbain': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Interurbain': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'Grande ligne': return 'bg-purple-100 text-purple-700 border-purple-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
-  };
-
-  const renderHome = () => (
-    <div className="flex flex-col h-full bg-slate-50">
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-40">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1">
-          <div className="flex flex-col">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">LISTE DES LIGNES</p>
-            <p className="text-sm font-bold text-blue-600">{lines.length} Itinéraires actifs</p>
-          </div>
-          <div className="flex gap-2">
-            <label className="flex-1 sm:flex-none p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500 hover:text-blue-600 active:scale-90 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-              <FileUp size={16} />
-              <span className="text-[10px] font-black uppercase tracking-tight">Import</span>
-              <input type="file" accept=".xml" onChange={handleImportXML} className="hidden" />
-            </label>
-            <button onClick={exportToXML} className="flex-1 sm:flex-none p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500 hover:text-emerald-600 active:scale-90 transition-all flex items-center justify-center gap-1.5">
-              <FileDown size={16} />
-              <span className="text-[10px] font-black uppercase tracking-tight">Export</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-orange-50 border-2 border-orange-100 rounded-[32px] p-5 flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-700">
-          <div className="bg-orange-500 text-white p-2.5 rounded-2xl shrink-0 shadow-lg shadow-orange-200">
-            <AlertTriangle size={20} />
-          </div>
-          <p className="text-[11px] font-bold text-orange-900 leading-tight italic">
-            Cette application est une aide à la conduite ; elle ne doit pas être manipulée lorsque le véhicule roule.
-          </p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {lines.map(line => (
-            <div key={line.id} onClick={() => handleSelectLine(line)} className="bg-white p-4 rounded-3xl shadow-sm flex items-center space-x-4 active:scale-[0.98] transition-transform cursor-pointer border border-slate-100 hover:shadow-md group">
-              <div className="bg-blue-600 text-white w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-black shrink-0 shadow-lg shadow-blue-200"><span className="text-[8px] opacity-70 leading-none">LIGNE</span><span className="text-xl leading-none">{line.number}</span></div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                   <h3 className="font-bold text-slate-800 truncate text-base tracking-tight">{line.name}</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400 flex items-center gap-1 font-bold uppercase tracking-tight"><MapPin size={10} /> {line.stops.length} arrêts</span>
-                  {line.type && (
-                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${getTypeColorClass(line.type)}`}>
-                      {line.type}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={(e) => handleEditLine(e, line)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 hover:bg-blue-50 hover:text-blue-500 transition-colors"><Pencil size={18} /></button>
-                <button onClick={(e) => deleteLine(e, line.id)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 hover:bg-rose-50 hover:text-rose-500 transition-colors"><Trash2 size={18} /></button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-slate-100 flex gap-3 z-[100] pb-[calc(env(safe-area-inset-bottom,24px)+24px)] justify-center">
-        <div className="w-full max-w-4xl flex gap-4">
-          <button onClick={() => setView(AppView.GEOMANUEL)} className="flex-1 bg-slate-800 text-white px-4 py-4 rounded-3xl shadow-lg font-bold flex items-center justify-center space-x-3 active:scale-95 transition-transform group border border-white/10">
-            <Navigation2 size={20} className="group-hover:rotate-12 transition-transform text-blue-400" />
-            <span className="text-sm tracking-tight italic uppercase font-black">GeoManuel</span>
-          </button>
-          <button onClick={handleCreateLine} className="flex-[1.5] bg-blue-600 text-white px-4 py-4 rounded-3xl shadow-2xl font-bold flex items-center justify-center space-x-3 active:scale-95 transition-transform group">
-            <PlusCircle size={22} className="group-hover:rotate-90 transition-transform" />
-            <span className="text-sm tracking-tight italic uppercase font-black">Nouvelle ligne</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderDetail = () => selectedLine && (
-    <div className="flex flex-col lg:flex-row h-full bg-white relative">
-      <div className="h-[40vh] lg:h-full lg:w-1/2 relative shrink-0">
-        <MapComponent stops={selectedLine.stops} focusLocation={mapFocus} satellite={isSatellite} height="100%" />
-        <div className="absolute top-4 left-4 flex gap-3 z-20 safe-top">
-          <button onClick={() => setView(AppView.HOME)} className="bg-white p-3 rounded-full shadow-xl active:scale-90 transition-transform"><ChevronLeft size={24} className="text-slate-800" /></button>
-        </div>
-        <div className="absolute top-4 right-4 z-20 safe-top">
-          <button 
-            onClick={() => setIsSatellite(!isSatellite)} 
-            className={`p-3 rounded-full shadow-xl transition-all active:scale-90 flex items-center gap-2 ${isSatellite ? 'bg-blue-600 text-white' : 'bg-white text-slate-800'}`}
-          >
-            {isSatellite ? <Globe size={24} /> : <Layers size={24} />}
-            <span className="text-[10px] font-black uppercase tracking-tight hidden sm:block">
-              {isSatellite ? 'Standard' : 'Satellite'}
-            </span>
-          </button>
-        </div>
-      </div>
-      <div className="flex-1 flex flex-col bg-white rounded-none lg:mt-0 relative z-10 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] lg:shadow-none min-h-0 overflow-visible">
-        <div className="p-8 flex-1 overflow-y-auto pb-48 lg:pb-32 min-h-0">
-          <div className="w-16 h-1.5 bg-slate-100 rounded-full mx-auto mb-10 lg:hidden"></div>
-          <div className="flex items-start justify-between mb-6">
-            <div className="space-y-2">
-              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest italic transition-all ${getTypeColorClass(selectedLine.type)}`}>
-                {getTypeIcon(selectedLine.type)}
-                {selectedLine.type || 'Service'}
-              </div>
-              <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-tight">{selectedLine.name}</h2>
-            </div>
-            <div className="bg-slate-900 text-white px-4 py-2 rounded-2xl font-black italic shadow-lg shadow-slate-200">#{selectedLine.number}</div>
-          </div>
-
-          {lineStats && (
-            <div className="grid grid-cols-2 gap-4 mb-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
-              <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex items-center gap-3">
-                <div className="bg-blue-600/10 text-blue-600 p-2.5 rounded-2xl shrink-0"><Timer size={20} /></div>
-                <div className="min-w-0">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Durée du trajet</p>
-                  <p className="text-lg font-black text-slate-800 italic leading-none">{lineStats.duration}</p>
-                </div>
-              </div>
-              <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex items-center gap-3">
-                <div className="bg-blue-600/10 text-blue-600 p-2.5 rounded-2xl shrink-0"><Navigation2 size={20} /></div>
-                <div className="min-w-0">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Distance totale</p>
-                  <p className="text-lg font-black text-slate-800 italic leading-none">{lineStats.distance}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-8 relative before:absolute before:left-[11px] before:top-4 before:bottom-4 before:w-1 before:bg-slate-50">
-            {selectedLine.stops.map((s, i) => (
-              <div key={s.id || i} className="flex items-start space-x-6 relative">
-                <div className={`w-6 h-6 rounded-full border-[5px] bg-white z-10 flex items-center justify-center shrink-0 ${i === 0 ? 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : i === selectedLine!.stops.length - 1 ? 'border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.3)]' : 'border-slate-100'}`}></div>
-                <div className="flex-1 flex justify-between items-center group cursor-pointer" onClick={() => setMapFocus({ lat: s.lat, lng: s.lng })}>
-                  <div className="flex flex-col overflow-hidden">
-                    <span className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">{s.name}</span>
-                    <div className="flex items-center gap-2 mt-1"><Clock size={12} className="text-slate-400" /><span className="text-xs text-slate-500 font-medium tracking-tight">Passage à {s.time}</span></div>
-                    {s.annotation && (
-                      <div className="mt-2 flex items-start gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <MessageSquareText size={12} className="text-blue-500 mt-0.5 shrink-0" />
-                        <span className="text-[11px] text-slate-600 italic leading-tight">{s.annotation}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className={`${i === 0 ? 'bg-emerald-50 text-emerald-600' : i === selectedLine!.stops.length - 1 ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'} text-[10px] font-black px-3 py-1.5 rounded-xl shrink-0 italic uppercase tracking-wider border border-current opacity-70`}>{i === 0 ? 'Départ' : i === selectedLine!.stops.length - 1 ? 'Terminus' : `Arrêt ${i+1}`}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="absolute lg:sticky bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-50 pt-16 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]">
-          <button onClick={startServiceLogic} className="w-full max-w-lg mx-auto bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-[32px] font-black flex items-center justify-center space-x-4 shadow-[0_25px_60px_-10px_rgba(37,99,235,0.6)] active:scale-[0.96] transition-all border-b-[10px] border-blue-900 uppercase italic tracking-tight group">
-            <div className="bg-white/20 p-2 rounded-xl"><Play size={28} fill="currentColor" /></div>
-            <div className="flex flex-col items-start leading-none"><span className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-1">Prêt ?</span><span className="text-2xl">Démarrer le service</span></div>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderCreate = () => (
-    <div className="flex flex-col h-full bg-slate-50">
-      <div className="bg-white px-6 py-6 border-b border-slate-100 flex items-center justify-between sticky top-0 z-[100] safe-top shrink-0">
-        <button onClick={() => setView(AppView.HOME)} className="p-2 hover:bg-slate-50 rounded-full transition-colors flex items-center gap-2 group"><ArrowLeft size={24} /><span className="text-xs font-bold uppercase tracking-tight text-slate-400 hidden sm:block">Retour</span></button>
-        <h2 className="text-xl font-black tracking-tight uppercase italic text-slate-900">{newLine.id ? "Modification" : "Ajout"} d'itinéraire</h2>
-        <div className="w-10"></div>
-      </div>
-      <div className="flex-1 overflow-y-auto lg:grid lg:grid-cols-2 lg:gap-0">
-        <div className="p-6 space-y-8 pb-48">
-          <div className="space-y-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Informations générales</p>
-            <div className="grid grid-cols-4 gap-4">
-              <input placeholder="NO." value={newLine.number ?? ''} onChange={e => setNewLine(prev => ({...prev, number: e.target.value}))} className="bg-white border-2 border-slate-100 p-4 rounded-2xl font-black text-center focus:border-blue-500 outline-none shadow-sm" />
-              <input placeholder="Nom de la destination..." value={newLine.name ?? ''} onChange={e => setNewLine(prev => ({...prev, name: e.target.value}))} className="col-span-3 bg-white border-2 border-slate-100 p-4 rounded-2xl font-bold focus:border-blue-500 outline-none shadow-sm" />
-            </div>
-            
-            <div className="space-y-3 pt-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Type de ligne</p>
-              <div className="flex flex-wrap gap-2">
-                {LINE_TYPES.map(type => (
-                  <button 
-                    key={type} 
-                    onClick={() => setNewLine(prev => ({ ...prev, type }))}
-                    className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-2 shadow-sm
-                      ${newLine.type === type 
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-blue-200' 
-                        : 'bg-white border-slate-100 text-slate-400 hover:border-blue-100'}`}
-                  >
-                    {getTypeIcon(type)}
-                    {type}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="lg:hidden space-y-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Placement sur carte (cliquez pour ajouter)</p>
-            <div className="relative h-72 rounded-[32px] overflow-hidden border-2 border-slate-100 shadow-sm"><MapComponent stops={(newLine.stops || []) as Stop[]} currentPos={newLine.stops?.length === 0 ? userLocation : null} height="100%" onMapClick={handleMapClickOnCreate} /></div>
-          </div>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center px-1"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Séquence des stations</p><button onClick={addStopManually} className="text-xs text-blue-600 font-black uppercase flex items-center gap-1"><PlusCircle size={14} /> Ajouter</button></div>
-            <div className="space-y-3">
-              {newLine.stops?.map((stop, i) => (
-                <div key={stop.id || i} className="bg-white p-4 rounded-3xl border-2 border-slate-100 flex flex-col gap-4 shadow-sm hover:border-blue-100 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="flex flex-col gap-2 shrink-0">
-                      <button 
-                        type="button"
-                        onClick={() => moveStop(i, 'up')} 
-                        disabled={i === 0} 
-                        className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-10 active:scale-90 transition-all shadow-sm"
-                        aria-label="Monter l'arrêt"
-                      >
-                        <ChevronUp size={24} />
-                      </button>
-                      <div className="w-12 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-xs font-black text-white shrink-0 shadow-lg shadow-blue-100">{i + 1}</div>
-                      <button 
-                        type="button"
-                        onClick={() => moveStop(i, 'down')} 
-                        disabled={i === (newLine.stops?.length || 0) - 1} 
-                        className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-10 active:scale-90 transition-all shadow-sm"
-                        aria-label="Descendre l'arrêt"
-                      >
-                        <ChevronDown size={24} />
-                      </button>
-                    </div>
-                    <div className="flex-1 space-y-3 min-w-0">
-                      <input value={stop.name ?? ''} onChange={e => updateStop(i, 'name', e.target.value)} className="w-full font-bold text-slate-800 outline-none bg-slate-50/50 p-2 rounded-lg" placeholder="Nom de la station" />
-                      <div className="flex gap-2">
-                        <div className="flex-1 flex items-center bg-slate-50 rounded-xl px-3 py-1.5 gap-2"><Clock size={14} className="text-slate-400" /><input type="time" value={stop.time ?? ''} onChange={e => updateStop(i, 'time', e.target.value)} className="bg-transparent text-sm font-bold text-slate-900 outline-none w-full" /></div>
-                      </div>
-                      <div className="flex items-start bg-slate-50/50 rounded-xl px-3 py-2 gap-2 border border-slate-100/50">
-                        <MessageSquareText size={14} className="text-slate-300 mt-1 shrink-0" />
-                        <textarea 
-                          value={stop.annotation ?? ''} 
-                          onChange={e => updateStop(i, 'annotation', e.target.value)} 
-                          className="bg-transparent text-[11px] font-medium text-slate-700 outline-none w-full resize-none h-10 leading-tight" 
-                          placeholder="Ajouter une annotation (ex: Quai B, ralentisseur...)"
-                        />
-                      </div>
-                    </div>
-                    <button type="button" onClick={() => removeStop(i)} className="p-3 text-slate-300 hover:text-rose-500 transition-colors active:scale-90"><Trash2 size={20} /></button>
-                  </div>
-                  <div className="flex gap-2 pt-2 border-t border-slate-50">
-                    <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lat ?? ''} onChange={e => updateStop(i, 'lat', e.target.value)} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LAT" /></div>
-                    <div className="flex-1 flex items-center bg-slate-50/50 rounded-xl px-3 py-2 gap-2"><Crosshair size={12} className="text-slate-400" /><input type="text" value={stop.lng ?? ''} onChange={e => updateStop(i, 'lng', e.target.value)} className="bg-transparent text-[10px] font-mono font-bold text-slate-900 outline-none w-full" placeholder="LNG" /></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="hidden lg:block relative h-full bg-white border-l border-slate-100">
-           <MapComponent stops={(newLine.stops || []) as Stop[]} currentPos={newLine.stops?.length === 0 ? userLocation : null} height="100%" onMapClick={handleMapClickOnCreate} />
-           <div className="absolute top-6 left-6 bg-blue-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl">Édition de carte active</div>
-        </div>
-      </div>
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/90 backdrop-blur-xl border-t border-slate-100 z-[200] pb-[env(safe-area-inset-bottom,24px)] flex justify-center">
-        <div className="w-full max-w-2xl flex gap-3">
-          <button onClick={() => setView(AppView.HOME)} className="flex-1 bg-slate-100 text-slate-600 p-5 rounded-3xl font-black uppercase tracking-tight active:scale-95 transition-all text-sm">Annuler</button>
-          <button onClick={saveLine} disabled={!newLine.number || !newLine.name || !newLine.stops?.length} className="flex-[2] bg-slate-900 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all disabled:opacity-20 uppercase tracking-tight"><Save size={22} /><span className="text-sm">Enregistrer</span></button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderSummary = () => {
-    if (!lastReport) return null;
-    const totalBoarded = lastReport.stops.reduce((acc, s) => acc + (s.boardedCount || 0), 0);
-    const totalDropped = lastReport.stops.reduce((acc, s) => acc + (s.droppedCount || 0), 0);
-    return (
-      <div className="flex flex-col h-full bg-slate-950 text-white overflow-y-auto print:bg-white print:text-slate-900">
-        <div className="p-8 space-y-8 pb-48 max-w-4xl mx-auto w-full">
-          <div className="flex justify-between items-center print:hidden">
-            <div className="p-3 bg-white/5 rounded-2xl border border-white/10"><CheckCircle2 size={32} className="text-emerald-500" /></div>
-            <button onClick={() => setView(AppView.HOME)} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-white/5 active:scale-95 transition-all"><Home size={16} /> Fermer</button>
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Rapport de ligne</h2>
-            <div className="flex items-center gap-2"><p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Résumé - Ligne {lastReport.lineNumber}</p></div>
-          </div>
-          <div className="flex flex-col gap-4">
-            <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1 print:border-slate-200">
-              <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Durée Totale</div>
-              <div className="text-2xl font-black italic text-emerald-400 print:text-emerald-600">{lastReport.duration}</div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-blue-600/10 border border-blue-500/20 rounded-[32px] p-6 space-y-1 print:border-blue-200">
-                <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Montées</div>
-                <div className="text-2xl sm:text-3xl font-black italic text-blue-400 print:text-blue-600">{totalBoarded} <span className="text-xs not-italic opacity-60">pax</span></div>
-              </div>
-              <div className="bg-rose-600/10 border border-rose-500/20 rounded-[32px] p-6 space-y-1 print:border-rose-200">
-                <div className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em]">Descentes</div>
-                <div className="text-2xl sm:text-3xl font-black italic text-rose-400 print:text-rose-600">{totalDropped} <span className="text-xs not-italic opacity-60">pax</span></div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-[40px] overflow-hidden print:border-slate-200">
-            <div className="bg-white/5 p-6 border-b border-white/10 flex items-center gap-3 print:bg-slate-50 print:border-slate-200"><CalendarDays size={18} className="text-blue-500" /><span className="text-xs font-black uppercase tracking-widest italic">Chronologie détaillée</span></div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              {lastReport.stops.map((stop, i) => (
-                <div key={i} className="flex items-center justify-between border-b border-white/5 pb-4 print:border-slate-100">
-                  <div className="flex flex-col min-w-0">
-                    <span className={`font-bold truncate print:text-slate-900 ${stop.status === 'not-served' ? 'text-slate-500 line-through opacity-50' : 'text-slate-100'}`}>{stop.stopName}</span>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-[9px] text-slate-500 font-bold uppercase">Prévu: {stop.scheduledTime}</span>
-                      <div className="flex items-center gap-2"><span className="text-blue-400 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter"><UserPlus size={10} /> {stop.boardedCount}</span><span className="text-rose-400 font-black text-[10px] flex items-center gap-1 uppercase tracking-tighter"><UserMinus size={10} /> {stop.droppedCount}</span></div>
-                    </div>
-                  </div>
-                  <div className="text-right flex flex-col items-end shrink-0">
-                    {stop.status === 'not-served' ? (
-                      <div className="flex flex-col items-end">
-                        <span className="text-slate-500 font-black italic text-sm uppercase">Non atteint</span>
-                        <div className="text-[8px] font-black uppercase mt-1 px-2 py-0.5 rounded-full border bg-slate-500/10 border-slate-500/30 text-slate-500 flex items-center gap-1">
-                          <Ban size={8} /> Non desservi
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <span className={`text-lg font-black italic leading-none ${stop.status === 'late' ? 'text-rose-500' : stop.status === 'early' ? 'text-blue-400' : 'text-emerald-400'}`}>{stop.actualTime}</span>
-                        <div className={`text-[8px] font-black uppercase mt-1 px-2 py-0.5 rounded-full border ${stop.status === 'late' ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : stop.status === 'early' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'}`}>{stop.status === 'late' ? `+${stop.diffMinutes} min` : stop.status === 'early' ? `${stop.diffMinutes} min` : 'OK'}</div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[calc(env(safe-area-inset-bottom,24px)+40px)] print:hidden flex justify-center"><button onClick={handleExportPDF} className="w-full max-w-md bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight"><FileText size={22} /><span className="text-sm">Exporter en PDF</span></button></div>
-      </div>
-    );
-  }
-
-  const renderManualSummary = () => {
-    if (!lastManualReport) return null;
-    const stopsAsStops: Stop[] = lastManualReport.stops.map((s, i) => ({ id: generateId(), name: `Arrêt ${i + 1}`, time: s.time, lat: s.lat, lng: s.lng }));
-    return (
-      <div className="flex flex-col h-full bg-slate-950 text-white overflow-y-auto print:bg-white print:text-slate-900">
-        <div className="p-8 space-y-8 pb-48 max-w-4xl mx-auto w-full">
-          <div className="flex justify-between items-center print:hidden">
-            <div className="p-3 bg-white/5 rounded-2xl border border-white/10"><CheckCircle2 size={32} className="text-blue-500" /></div>
-            <button onClick={() => setView(AppView.HOME)} className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-white/5 active:scale-95 transition-all"><Home size={16} /> Fermer</button>
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-4xl font-black italic uppercase tracking-tighter leading-none">Bilan GeoManuel</h2>
-            <div className="flex items-center gap-2"><p className="text-slate-400 text-xs font-bold uppercase tracking-widest print:text-slate-500">Traçage dynamique en direct</p></div>
-          </div>
-          <div className="relative h-64 sm:h-96 rounded-[40px] overflow-hidden border border-white/10 bg-white/5 shadow-2xl print:hidden"><MapComponent stops={stopsAsStops} dark={true} height="100%" /></div>
-          <div className="flex flex-col gap-4">
-            <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 space-y-1 print:border-slate-200">
-              <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Durée Totale</div>
-              <div className="text-2xl font-black italic text-emerald-400 print:text-emerald-600">{lastManualReport.duration}</div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-blue-600/10 border border-blue-500/20 rounded-[32px] p-6 space-y-1 print:border-blue-200">
-                <div className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Montées</div>
-                <div className="text-2xl sm:text-3xl font-black italic text-blue-400 print:text-blue-600">{lastManualReport.totalBoarded} <span className="text-xs not-italic opacity-60">pax</span></div>
-              </div>
-              <div className="bg-rose-600/10 border border-rose-500/20 rounded-[32px] p-6 space-y-1 print:border-rose-200">
-                <div className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em]">Descentes</div>
-                <div className="text-2xl sm:text-3xl font-black italic text-rose-400 print:text-rose-600">{lastManualReport.totalDropped} <span className="text-xs not-italic opacity-60">pax</span></div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-[40px] overflow-hidden print:border-slate-200">
-            <div className="bg-white/5 p-6 border-b border-white/10 flex items-center gap-3 print:bg-slate-50 print:border-slate-200"><MapPinCheck size={18} className="text-blue-500" /><span className="text-xs font-black uppercase tracking-widest italic">Points d'immobilisation ({lastManualReport.stops.length})</span></div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              {lastManualReport.stops.map((stop, i) => (
-                <div key={i} className="flex items-center justify-between border-b border-white/5 pb-4 print:border-slate-100">
-                  <div className="flex flex-col min-w-0"><span className="font-bold text-slate-100 truncate print:text-slate-900">Point {i + 1}</span><div className="flex items-center gap-2"><span className="text-emerald-400 font-black text-[10px] flex items-center gap-1 uppercase"><UserPlus size={10} /> {stop.boarded}</span><span className="text-rose-400 font-black text-[10px] flex items-center gap-1 uppercase"><UserMinus size={10} /> {stop.dropped}</span></div></div>
-                  <div className="text-right flex flex-col items-end"><span className="text-lg font-black italic leading-none text-slate-100 print:text-slate-900">{stop.time}</span><div className="text-[8px] font-black uppercase mt-1 px-2 py-0.5 rounded-full border bg-white/5 border-white/10 text-slate-400">Enregistré</div></div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-white/5 z-50 pb-[calc(env(safe-area-inset-bottom,24px)+40px)] print:hidden flex justify-center">
-          <div className="w-full max-w-2xl flex gap-4">
-            <button onClick={handleConvertManualToLine} className="flex-1 bg-blue-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight italic"><Save size={22} /><span className="text-sm">Sauvegarder</span></button>
-            <button onClick={handleExportPDF} className="flex-1 bg-emerald-600 text-white p-5 rounded-3xl font-black flex items-center justify-center space-x-3 shadow-2xl active:scale-95 transition-all uppercase tracking-tight italic"><FileText size={22} /><span className="text-sm">PDF</span></button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="h-[100dvh] w-full max-w-screen-2xl mx-auto overflow-hidden shadow-2xl relative bg-slate-50 text-slate-900 flex flex-col">
-      {view !== AppView.SUMMARY && view !== AppView.DRIVING && view !== AppView.PREP && view !== AppView.GEOMANUEL && view !== AppView.MANUAL_SUMMARY && (
-        <div className="bg-blue-600 text-white px-6 py-5 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0 print:hidden">
-          <div className="flex items-center gap-3">
-            <div className="bg-white/20 p-2 rounded-xl"><Bus size={22} /></div>
-            <div className="flex flex-col">
-              <h1 className="text-xl font-black uppercase italic tracking-tighter leading-none">GEOligne</h1>
-              {view === AppView.HOME && (
-                <span className="text-[8px] font-bold opacity-70 uppercase tracking-widest mt-0.5">BY MRICO73</span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 text-[10px] font-black bg-black/20 px-3 py-1.5 rounded-xl border border-white/10 uppercase italic tracking-widest">
-              {screenType === 'Mobile' ? <Smartphone size={12} /> : screenType === 'Tablette' ? <Tablet size={12} /> : <Monitor size={12} />}
-              {screenType}
-            </div>
-            <div className="flex items-center gap-2 text-sm font-mono font-black bg-white/10 px-4 py-2 rounded-2xl border border-white/10 tabular-nums shrink-0"><Clock size={16} className="text-blue-200" /> {currentTime}</div>
-          </div>
-        </div>
+    <div className="h-[100dvh] w-full max-w-screen-2xl mx-auto overflow-hidden shadow-2xl relative bg-slate-50 text-slate-900 flex flex-col app-container print:h-auto print:overflow-visible print:block">
+      {![AppView.SUMMARY, AppView.DRIVING, AppView.PREP, AppView.GEOMANUEL, AppView.MANUAL_SUMMARY].includes(view) && (
+        <Header 
+          screenType={screenType} 
+          onOpenCalculator={() => setIsTimeCalcOpen(true)}
+          onOpenPassengerCounter={() => setIsPassengerCounterOpen(true)}
+        />
       )}
-      <div className="flex-1 overflow-hidden relative">
-        {view === AppView.HOME && renderHome()}
-        {view === AppView.DETAIL && renderDetail()}
-        {view === AppView.CREATE && renderCreate()}
-        {view === AppView.PREP && selectedLine && (<PrepView line={selectedLine} userLocation={userLocation} onCancel={() => setView(AppView.DETAIL)} onArrived={() => setView(AppView.DRIVING)} />)}
-        {view === AppView.DRIVING && selectedLine && (<DrivingView line={selectedLine} onExit={() => setView(AppView.DETAIL)} onFinish={handleCourseFinished} onStop={() => { setSelectedLine(null); setView(AppView.HOME); }} initialHeading={userHeading} />)}
-        {view === AppView.SUMMARY && renderSummary()}
-        {view === AppView.GEOMANUEL && <GeoManuelView onExit={() => setView(AppView.HOME)} onFinish={handleManualCourseFinished} />}
-        {view === AppView.MANUAL_SUMMARY && renderManualSummary()}
+      
+      <div className="flex-1 overflow-hidden relative main-content-wrapper print:overflow-visible print:h-auto print:block">
+        {view === AppView.HOME && (
+          <HomeView 
+            lines={lines} 
+            reports={reports}
+            manualReports={manualReports}
+            onSelectLine={handleSelectLine}
+            onEditLine={handleEditLine}
+            onDeleteLine={(e, id) => { e.stopPropagation(); if (window.confirm("Supprimer ?")) deleteLine(id); }}
+            onImportXML={handleImportXML}
+            onExportToXML={handleExportToXML}
+            onGeoManuel={() => setView(AppView.GEOMANUEL)}
+            onCreateLine={handleCreateLine}
+            onViewReport={handleViewPastReport}
+            onDeleteReport={deleteReport}
+            onViewManualReport={handleViewPastManualReport}
+            onDeleteManualReport={deleteManualReport}
+          />
+        )}
+
+        {view === AppView.DETAIL && selectedLine && (
+          <DetailView 
+            line={selectedLine} 
+            screenType={screenType}
+            onBack={() => setView(AppView.HOME)}
+            onStart={startServiceLogic}
+            onExportXMR={(l) => {
+              let xml = `<?xml version="1.0" encoding="UTF-8"?><geoligne><line id="${l.id}"><number>${l.number}</number><name>${l.name}</name><info>${l.info || ''}</info><type>${l.type || 'Urbain'}</type><stops>`;
+              l.stops.forEach(s => xml += `<stop><name>${s.name}</name><time>${s.time}</time><lat>${s.lat}</lat><lng>${s.lng}</lng></stop>`);
+              xml += '</stops></line></geoligne>';
+              const blob = new Blob([xml], { type: 'application/xml' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `${l.number}_line.xmr`;
+              link.click();
+            }}
+            onExportPDF={() => window.print()}
+          />
+        )}
+
+        {view === AppView.CREATE && (
+          <CreateView 
+            initialLine={editingLine}
+            userLocation={userLocation}
+            onCancel={() => setView(AppView.HOME)}
+            onSave={handleSaveLine}
+          />
+        )}
+
+        {view === AppView.PREP && selectedLine && (
+          <PrepView 
+            line={selectedLine} 
+            userLocation={userLocation}
+            heading={userHeading}
+            onCancel={() => setView(AppView.DETAIL)}
+            onArrived={() => {
+              setCourseStartTimestamp(Date.now());
+              setView(AppView.DRIVING);
+            }}
+          />
+        )}
+
+        {view === AppView.DRIVING && selectedLine && (
+          <DrivingView 
+            line={selectedLine} 
+            initialHeading={userHeading}
+            startTimestamp={courseStartTimestamp || Date.now()}
+            onExit={() => {
+              setCourseStartTimestamp(null);
+              setView(AppView.DETAIL);
+            }}
+            onFinish={handleCourseFinished}
+          />
+        )}
+
+        {view === AppView.SUMMARY && lastReport && (
+          <SummaryView 
+            report={lastReport}
+            onClose={() => setView(AppView.HOME)}
+            onExportPDF={() => window.print()}
+          />
+        )}
+
+        {view === AppView.GEOMANUEL && (
+          <GeoManuelView 
+            onExit={() => setView(AppView.HOME)}
+            onFinish={handleManualFinished}
+          />
+        )}
+
+        {view === AppView.MANUAL_SUMMARY && lastManualReport && (
+          <ManualSummaryView 
+            report={lastManualReport}
+            onClose={() => setView(AppView.HOME)}
+            onConvert={handleConvertManualToLine}
+            onExportPDF={() => window.print()}
+          />
+        )}
       </div>
-    </div>
-  );
-};
 
-interface GeoManuelViewProps { onExit: () => void; onFinish: (report: ManualReport) => void; }
-const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
-  const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(null);
-  const [currentHeading, setCurrentHeading] = useState<number | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
-  const [startTime, setStartTime] = useState<Date | null>(null);
-  const [boardedTotal, setBoardedTotal] = useState(0);
-  const [droppedTotal, setDroppedTotal] = useState(0);
-  const [stops, setStops] = useState<ManualStop[]>([]);
-  const [currentStopBoarded, setCurrentStopBoarded] = useState(0);
-  const [currentStopDropped, setCurrentStopDropped] = useState(0);
+      {/* Modal du Calculateur Temporel */}
+      <TimeCalculator 
+        isOpen={isTimeCalcOpen} 
+        onClose={() => setIsTimeCalcOpen(false)} 
+      />
 
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setCurrentPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        if (pos.coords.heading !== null) setCurrentHeading(pos.coords.heading);
-      },
-      (err) => console.error(err),
-      { enableHighAccuracy: true }
-    );
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
-
-  const handleStart = () => { setIsRunning(true); setStartTime(new Date()); setStops([]); setBoardedTotal(0); setDroppedTotal(0); };
-  
-  const handleValidateStop = () => {
-    if (!currentPos) return;
-    const newStop: ManualStop = { id: stops.length + 1, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), lat: currentPos.lat, lng: currentPos.lng, boarded: currentStopBoarded, dropped: currentStopDropped };
-    setStops(prev => [...prev, newStop]);
-    setBoardedTotal(prev => prev + currentStopBoarded);
-    setDroppedTotal(prev => prev + currentStopDropped);
-    setCurrentStopBoarded(0);
-    setCurrentStopDropped(0);
-  };
-
-  const handleFinish = () => {
-    if (!startTime) return;
-    const endTime = new Date();
-    const diff = Math.floor((endTime.getTime() - startTime.getTime()) / 60000);
-    onFinish({ startTime: startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), endTime: endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), duration: `${Math.floor(diff/60)}h ${diff%60}min`, totalBoarded: boardedTotal + currentStopBoarded, totalDropped: droppedTotal + currentStopDropped, stops: stops, trace: [] });
-  };
-
-  return (
-    <div className="fixed inset-0 bg-[#080b14] text-white flex flex-col z-[500] safe-top safe-bottom">
-      <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 overflow-hidden relative max-w-5xl mx-auto w-full">
-        <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-3xl p-4 shrink-0">
-           <div className="flex items-center gap-3">
-             <div className="bg-slate-800 p-2 rounded-xl text-blue-400"><MapIcon size={20} /></div>
-             <div className="flex flex-col"><div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Traçage Manuel</span></div><span className="text-lg font-black italic uppercase leading-none mt-1">{isRunning ? "En cours..." : "En attente"}</span></div>
-           </div>
-           <button onClick={onExit} className="bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight active:scale-95 transition-all">Quitter</button>
-        </div>
-        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]">
-          <MapComponent stops={stops.map((s, i) => ({ id: s.id.toString(), name: `Pt ${i+1}`, time: s.time, lat: s.lat, lng: s.lng }))} currentPos={currentPos} heading={currentHeading} dark isDriving height="100%" />
-        </div>
-        <div className="grid grid-cols-2 gap-3 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
-          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
-            <div className="flex items-center gap-2"><div className="bg-emerald-600/20 p-1.5 rounded-lg text-emerald-400"><UserPlus size={16} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Montées</span></div>
-            <div className="flex items-center justify-between"><button disabled={!isRunning} onClick={() => setCurrentStopBoarded(Math.max(0, currentStopBoarded - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button><div className="text-2xl font-black italic text-emerald-400 tabular-nums">{currentStopBoarded}</div><button disabled={!isRunning} onClick={() => setCurrentStopBoarded(currentStopBoarded + 1)} className="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button></div>
-          </div>
-          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
-            <div className="flex items-center gap-2"><div className="bg-rose-600/20 p-1.5 rounded-lg text-rose-400"><UserMinus size={16} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Descentes</span></div>
-            <div className="flex items-center justify-between"><button disabled={!isRunning} onClick={() => setCurrentStopDropped(Math.max(0, currentStopDropped - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button><div className="text-2xl font-black italic text-rose-400 tabular-nums">{currentStopDropped}</div><button disabled={!isRunning} onClick={() => setCurrentStopDropped(currentStopDropped + 1)} className="w-10 h-10 rounded-xl bg-rose-600 shadow-lg flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button></div>
-          </div>
-        </div>
-        <div className="h-[12%] sm:h-20 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
-          {!isRunning ? (
-            <button onClick={handleStart} className="w-full h-full bg-blue-600 border-b-[8px] border-blue-800 rounded-[32px] flex items-center justify-center gap-4 active:translate-y-1 shadow-2xl"><Play size={24} fill="currentColor" /><span className="text-xl font-black italic uppercase tracking-tight">Début de course</span></button>
-          ) : (
-            <div className="flex gap-4 h-full"><button onClick={handleValidateStop} className="flex-[2] bg-emerald-600 border-b-[8px] border-emerald-800 rounded-[32px] flex flex-col items-center justify-center shadow-2xl active:scale-95"><CircleDot size={20} className="mb-1" /><span className="text-sm font-black italic uppercase tracking-tight">Valider Arrêt</span></button><button onClick={handleFinish} className="flex-1 bg-rose-600 border-b-[8px] border-rose-800 rounded-[32px] flex flex-col items-center justify-center shadow-2xl active:scale-95"><LogOut size={20} className="mb-1" /><span className="text-sm font-black italic uppercase tracking-tight">Fin</span></button></div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-interface PrepViewProps { line: BusLine; userLocation: { lat: number; lng: number } | null; onCancel: () => void; onArrived: () => void; }
-const PrepView: React.FC<PrepViewProps> = ({ line, userLocation, onCancel, onArrived }) => {
-  const [currentPos, setCurrentPos] = useState(userLocation);
-  const [currentHeading, setCurrentHeading] = useState<number | null>(null);
-  const [now, setNow] = useState(new Date());
-  const [routeMeta, setRouteMeta] = useState<{ distance: number; duration: number } | null>(null);
-  const firstStop = line.stops[0];
-  
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    if (!navigator.geolocation) return () => clearInterval(timer);
-    const watchId = navigator.geolocation.watchPosition((pos) => {
-      const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      setCurrentPos(newPos);
-      if (pos.coords.heading !== null) setCurrentHeading(pos.coords.heading);
-      if (getDistance(newPos.lat, newPos.lng, firstStop.lat, firstStop.lng) <= 50) onArrived();
-    }, (err) => console.error(err), { enableHighAccuracy: true });
-    return () => { navigator.geolocation.clearWatch(watchId); clearInterval(timer); };
-  }, [firstStop, onArrived]);
-
-  const stats = useMemo(() => {
-    if (!currentPos) return null;
-    
-    const durationSeconds = routeMeta?.duration || (getDistance(currentPos.lat, currentPos.lng, firstStop.lat, firstStop.lng) / 11);
-    const etaDate = new Date(now.getTime() + durationSeconds * 1000);
-    const etaFormatted = etaDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    const [h, m] = firstStop.time.split(':').map(Number);
-    const scheduled = new Date(); scheduled.setHours(h, m, 0, 0);
-    const marginMin = Math.round((scheduled.getTime() - etaDate.getTime()) / 60000);
-    
-    let status: 'late' | 'tight' | 'optimal' | 'early' = 'optimal';
-    if (marginMin < 0) status = 'late';
-    else if (marginMin < 5) status = 'tight';
-    else if (marginMin > 15) status = 'early';
-    
-    return { 
-      status, 
-      margin: marginMin, 
-      eta: etaFormatted,
-      distance: routeMeta ? (routeMeta.distance / 1000).toFixed(1) : (getDistance(currentPos.lat, currentPos.lng, firstStop.lat, firstStop.lng)/1000).toFixed(1)
-    };
-  }, [currentPos, firstStop, now, routeMeta]);
-
-  return (
-    <div className="fixed inset-0 bg-[#080b14] text-white z-[500] flex flex-col safe-top safe-bottom">
-      <div className="flex-1 p-4 sm:p-6 space-y-4 flex flex-col overflow-hidden max-w-5xl mx-auto w-full">
-        <div className="flex justify-between items-center bg-white/5 border border-white/10 rounded-3xl p-4 shrink-0">
-           <div className="flex items-center gap-3">
-             <div className="bg-blue-600 p-2 rounded-xl"><Activity size={20} className="animate-pulse" /></div>
-             <div className="flex flex-col">
-               <div className="flex items-center gap-1.5"><span className="text-[10px] font-black uppercase text-blue-400 tracking-widest leading-none">Navigation vers départ</span></div>
-               <span className="text-lg font-black italic uppercase truncate w-40 leading-none mt-1">{firstStop.name}</span>
-             </div>
-           </div>
-           <button onClick={onCancel} className="bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tight active:scale-95 transition-all">Quitter</button>
-        </div>
-
-        <div className="flex-1 rounded-[48px] overflow-hidden border border-white/10 relative shadow-inner">
-          <MapComponent stops={[firstStop]} currentPos={currentPos} heading={currentHeading} onRouteInfo={setRouteMeta} dark isDriving height="100%" />
-        </div>
-
-        <div className="bg-[#10162a] border border-white/10 rounded-[40px] p-8 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Navigation2 size={80} className="rotate-45" />
-          </div>
-          
-          <div className="flex flex-col space-y-6 relative">
-            <div className="flex justify-between items-start">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em] mb-2">Heure d'arrivée estimée</span>
-                <div className="flex items-baseline gap-3">
-                  <span className="text-6xl font-black italic tracking-tighter tabular-nums text-white">
-                    {stats?.eta || '--:--'}
-                  </span>
-                  <span className={`text-sm font-black uppercase px-3 py-1 rounded-lg italic border ${
-                    stats?.status === 'late' ? 'bg-rose-600/20 border-rose-500/50 text-rose-400' : 
-                    stats?.status === 'tight' ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 
-                    'bg-emerald-600/20 border-emerald-500/50 text-emerald-400'
-                  }`}>
-                    {stats?.status === 'late' ? 'Retard' : stats?.status === 'tight' ? 'Limite' : 'En temps'}
-                  </span>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 block">Départ prévu</span>
-                <span className="text-2xl font-black italic text-slate-300 tabular-nums">{firstStop.time}</span>
-              </div>
-            </div>
-
-            <div className="h-px bg-white/5 w-full"></div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Locate size={10} /> Distance</span>
-                  <span className="text-xl font-black italic text-slate-200">{stats?.distance || '--'} km</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Hourglass size={10} /> Marge</span>
-                  <span className={`text-xl font-black italic ${stats?.margin && stats.margin < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                    {stats?.margin !== undefined ? (stats.margin > 0 ? `+${stats.margin}` : stats.margin) : '--'} min
-                  </span>
-                </div>
-              </div>
-              
-              <button onClick={onArrived} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-4 rounded-2xl font-black uppercase italic tracking-tighter flex items-center gap-2 shadow-lg shadow-blue-900/40 active:scale-95 transition-all">
-                <PlayCircle size={20} />
-                Arrivé
-              </button>
-            </div>
-            
-            <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 italic uppercase bg-white/5 p-2 rounded-xl">
-              <Zap size={10} className="text-amber-400" />
-              Calculé via itinéraire le plus rapide • Limitation de vitesse incluse
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-interface DrivingViewProps { line: BusLine; onExit: () => void; onStop: () => void; onFinish: (report: CourseReport) => void; initialHeading: number | null; }
-const DrivingView: React.FC<DrivingViewProps> = ({ line, onExit, onStop, onFinish, initialHeading }) => {
-  const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(null);
-  const [currentHeading, setCurrentHeading] = useState<number | null>(initialHeading);
-  const [nextStopIdx, setNextStopIdx] = useState(0);
-  const [now, setNow] = useState(new Date());
-  const [actualArrivalTimes, setActualArrivalTimes] = useState<string[]>([]);
-  const [boardedCounts, setBoardedCounts] = useState<number[]>([]);
-  const [droppedCounts, setDroppedCounts] = useState<number[]>([]);
-  const [geolocatedStatus, setGeolocatedStatus] = useState<boolean[]>([]);
-  const [currentBoarding, setCurrentBoarding] = useState(0);
-  const [currentDropped, setCurrentDropped] = useState(0);
-  const [capturedArrivalTime, setCapturedArrivalTime] = useState<string | null>(null);
-  const wasAtStationRef = useRef(false);
-  const startTime = useRef(new Date());
-
-  useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 1000);
-    if (navigator.geolocation) {
-      const watchId = navigator.geolocation.watchPosition((pos) => {
-        setCurrentPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        if (pos.coords.heading !== null) setCurrentHeading(pos.coords.heading);
-      }, (err) => console.error(err), { enableHighAccuracy: true });
-      return () => { navigator.geolocation.clearWatch(watchId); clearInterval(interval); };
-    }
-    return () => clearInterval(interval);
-  }, []);
-
-  const currentStop = line.stops[nextStopIdx];
-  
-  const secondsUntilDeparture = useMemo(() => {
-    if (!currentStop || nextStopIdx !== 0) return null;
-    const [h, m] = currentStop.time.split(':').map(Number);
-    const scheduled = new Date(now);
-    scheduled.setHours(h, m, 0, 0);
-    return Math.floor((scheduled.getTime() - now.getTime()) / 1000);
-  }, [currentStop, nextStopIdx, now]);
-
-  const scheduleOffset = useMemo(() => {
-    if (!currentStop) return 0;
-    const [h, m] = currentStop.time.split(':').map(Number);
-    const scheduled = new Date(); scheduled.setHours(h, m, 0, 0);
-    return Math.floor((now.getTime() - scheduled.getTime()) / 60000);
-  }, [currentStop, now]);
-
-  const distanceRemaining = useMemo(() => (!currentPos || !currentStop) ? null : getDistance(currentPos.lat, currentPos.lng, currentStop.lat, currentStop.lng), [currentPos, currentStop]);
-  const isAtStation = useMemo(() => distanceRemaining !== null && distanceRemaining <= 50, [distanceRemaining]);
-
-  const handleNext = useCallback(() => {
-    const isReached = capturedArrivalTime !== null;
-    const time = capturedArrivalTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    const arrivals = [...actualArrivalTimes, time];
-    const boarded = [...boardedCounts, currentBoarding];
-    const dropped = [...droppedCounts, currentDropped];
-    const geos = [...geolocatedStatus, isReached];
-
-    setActualArrivalTimes(arrivals); 
-    setBoardedCounts(boarded); 
-    setDroppedCounts(dropped);
-    setGeolocatedStatus(geos);
-    
-    setCurrentBoarding(0); 
-    setCurrentDropped(0); 
-    setCapturedArrivalTime(null); 
-    wasAtStationRef.current = false;
-    
-    if (nextStopIdx < line.stops.length - 1) {
-      setNextStopIdx(prev => prev + 1);
-    } else {
-      const diff = Math.floor((new Date().getTime() - startTime.current.getTime()) / 60000);
-      onFinish({ 
-        lineName: line.name, 
-        lineNumber: line.number, 
-        startTime: startTime.current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
-        endTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
-        duration: `${Math.floor(diff/60)}h ${diff%60}min`, 
-        stops: line.stops.map((s, idx) => {
-          const [schH, schM] = s.time.split(':').map(Number); 
-          const [actH, actM] = (arrivals[idx] || "00:00").split(':').map(Number);
-          const wasGeolocated = geos[idx];
-          const d = (actH * 60 + actM) - (schH * 60 + schM);
-          
-          return { 
-            stopName: s.name, 
-            scheduledTime: s.time, 
-            actualTime: arrivals[idx] || "--:--", 
-            status: !wasGeolocated ? 'not-served' : (d > 2 ? 'late' : d < -2 ? 'early' : 'on-time'), 
-            diffMinutes: Math.abs(d), 
-            boardedCount: boarded[idx] || 0, 
-            droppedCount: dropped[idx] || 0 
-          };
-        }) 
-      });
-    }
-  }, [nextStopIdx, line, actualArrivalTimes, boardedCounts, droppedCounts, geolocatedStatus, currentBoarding, currentDropped, capturedArrivalTime, onFinish]);
-
-  useEffect(() => {
-    if (isAtStation) { 
-      wasAtStationRef.current = true; 
-      if (!capturedArrivalTime) setCapturedArrivalTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })); 
-    }
-    else if (wasAtStationRef.current && distanceRemaining !== null && distanceRemaining > 50) {
-      handleNext();
-    }
-  }, [isAtStation, distanceRemaining, capturedArrivalTime, handleNext]);
-
-  return (
-    <div className="fixed inset-0 bg-[#080b14] text-white flex flex-col font-sans overflow-hidden z-[500] safe-top safe-bottom">
-      <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 overflow-hidden relative max-w-5xl mx-auto w-full">
-        <div className="flex gap-3 h-[10%] sm:h-20 shrink-0">
-          <div className={`flex-1 rounded-3xl p-4 flex flex-col justify-center border transition-colors duration-500 ${scheduleOffset < -1 ? 'bg-amber-950/20 border-amber-500/30' : scheduleOffset > 2 ? 'bg-rose-950/20 border-rose-500/30' : 'bg-emerald-950/20 border-emerald-500/30'}`}>
-            <div className={`text-[8px] font-black uppercase flex items-center gap-1.5 ${scheduleOffset < -1 ? 'text-amber-400' : scheduleOffset > 2 ? 'text-rose-400' : 'text-emerald-400'}`}>{scheduleOffset < -1 ? 'Avance' : scheduleOffset > 2 ? 'Retard' : 'Ponctuel'}</div>
-            <div className="flex items-baseline gap-1.5"><span className="text-2xl font-black italic">{scheduleOffset === 0 ? 'Ok' : scheduleOffset > 0 ? `+${scheduleOffset}` : scheduleOffset}</span><span className="text-[10px] opacity-50 font-bold uppercase">min</span></div>
-          </div>
-          <div className="flex-[0.6] rounded-3xl p-4 flex flex-col justify-center bg-[#10162a] border border-white/5"><div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Flag size={12} /> Distance</div><span className="text-xl font-black italic tracking-tighter leading-none">{distanceRemaining === null ? '--' : (distanceRemaining < 1000 ? `${Math.round(distanceRemaining)} m` : `${(distanceRemaining / 1000).toFixed(1)} km`)}</span></div>
-          <button onClick={() => window.confirm("Annuler le service ?") && onExit()} className="flex-[0.4] rounded-3xl p-4 flex flex-col items-center justify-center bg-white/5 border border-white/10 shrink-0"><RotateCcw size={18} className="text-slate-400" /><span className="text-[7px] font-black uppercase mt-1 text-slate-500">Annuler</span></button>
-        </div>
-        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]">
-          <MapComponent stops={line.stops} currentPos={currentPos} heading={currentHeading} dark isDriving height="100%" />
-        </div>
-        <div className={`transition-all rounded-[40px] p-5 flex items-center justify-between shadow-2xl shrink-0 ${isAtStation ? 'bg-emerald-900/40 border-emerald-500 border' : 'bg-[#10162a] border-white/10 border'}`}>
-          <div className="flex gap-4 items-center min-w-0">
-            <div className="w-14 h-14 rounded-[20px] flex flex-col items-center justify-center font-black shrink-0 border-b-8 bg-blue-600 border-blue-800 text-white italic">
-              <span className="text-2xl leading-none">{line.number}</span>
-            </div>
-            <div className="flex flex-col min-w-0">
-              <div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-1 ${isAtStation ? 'text-emerald-400' : 'text-blue-500'}`}>
-                {isAtStation ? 'Arrêt en cours' : 'Prochain arrêt'}
-              </div>
-              <h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none truncate">
-                {currentStop?.name}
-              </h2>
-              {currentStop?.annotation && (
-                <div className="flex items-center gap-1 mt-1 opacity-80">
-                  <MessageSquareText size={10} className="text-blue-400 shrink-0" />
-                  <span className="text-[10px] font-bold text-slate-400 truncate leading-none uppercase">
-                    {currentStop.annotation}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="text-3xl font-black italic text-slate-200 tabular-nums">{currentStop?.time}</div>
-        </div>
-        <div className="grid grid-cols-2 gap-3 shrink-0 sm:max-w-md sm:mx-auto sm:w-full">
-          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
-            <div className="flex items-center gap-2"><div className="bg-emerald-600/20 p-1.5 rounded-lg text-emerald-400"><UserPlus size={16} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Montées</span></div>
-            <div className="flex items-center justify-between"><button onClick={() => setCurrentBoarding(Math.max(0, currentBoarding - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button><div className="text-2xl font-black italic text-emerald-400 tabular-nums">{currentBoarding}</div><button onClick={() => setCurrentBoarding(currentBoarding + 1)} className="w-10 h-10 rounded-xl bg-emerald-600 shadow-lg flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button></div>
-          </div>
-          <div className="bg-[#10162a] border border-white/10 rounded-[32px] p-4 flex flex-col gap-3">
-            <div className="flex items-center gap-2"><div className="bg-rose-600/20 p-1.5 rounded-lg text-rose-400"><UserMinus size={16} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Descentes</span></div>
-            <div className="flex items-center justify-between"><button onClick={() => setCurrentDropped(Math.max(0, currentDropped - 1))} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center active:scale-90 transition-all"><Minus size={18} /></button><div className="text-2xl font-black italic text-rose-400 tabular-nums">{currentDropped}</div><button onClick={() => setCurrentDropped(currentDropped + 1)} className="w-10 h-10 rounded-xl bg-rose-600 shadow-lg flex items-center justify-center active:scale-90 transition-all"><Plus size={18} /></button></div>
-          </div>
-        </div>
-        <div className="flex gap-4 h-[12%] sm:h-20 shrink-0 pb-2 sm:max-w-md sm:mx-auto sm:w-full">
-          <button onClick={() => setNextStopIdx(p => Math.max(0, p - 1))} className="flex-1 bg-white/5 rounded-[32px] flex items-center justify-center text-slate-600 border border-white/5 active:scale-90 transition-all"><ChevronLeft size={32} /></button>
-          <button onClick={handleNext} className={`flex-[3] border-b-[8px] rounded-[32px] flex items-center justify-center transition-all shadow-2xl active:scale-95 ${nextStopIdx === line.stops.length - 1 ? 'bg-rose-600 border-rose-800' : 'bg-blue-600 border-blue-800'}`}>
-            <span className="text-xl font-black italic uppercase tracking-tight flex items-center gap-2">
-              {nextStopIdx === line.stops.length - 1 ? 'Terminer' : 
-                (isAtStation ? 
-                  (nextStopIdx === 0 && secondsUntilDeparture !== null && secondsUntilDeparture > 0 ? 
-                    `Départ dans ${Math.floor(secondsUntilDeparture / 60)}:${(secondsUntilDeparture % 60).toString().padStart(2, '0')}` : 
-                    (nextStopIdx === 0 ? 'Départ' : 'Partir')
-                  ) : 
-                'Valider Manuel')
-              }
-            </span>
-          </button>
-        </div>
-      </div>
+      {/* Modal du Compteur Passagers */}
+      <PassengerCounter
+        isOpen={isPassengerCounterOpen}
+        onClose={() => setIsPassengerCounterOpen(false)}
+      />
     </div>
   );
 };
