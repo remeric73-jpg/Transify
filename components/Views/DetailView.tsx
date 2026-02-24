@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { ChevronLeft, Globe, Layers, Timer, Navigation2, Clock, MessageSquareText, Download, FileText, Play, MapPin, BusFront, Info } from 'lucide-react';
+import { ChevronLeft, Globe, Layers, Timer, Clock, MessageSquareText, Download, FileText, Play, MapPin, BusFront, Info } from 'lucide-react';
 import MapComponent from '../MapComponent';
 import { BusLine, LineType } from '../../types';
 import { getDistance } from '../../utils/geoUtils';
@@ -21,7 +21,7 @@ const DetailView: React.FC<DetailViewProps> = ({ line, screenType, onBack, onSta
   const isDraggingRef = useRef(false);
   const printDate = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  const startDrag = (e: React.MouseEvent | React.TouchEvent) => {
+  const startDrag = (_e: React.MouseEvent | React.TouchEvent) => {
     isDraggingRef.current = true;
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'row-resize';

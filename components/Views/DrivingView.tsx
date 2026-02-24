@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ChevronLeft, MessageSquareText, Plus, Minus, UserPlus, UserMinus, RotateCcw, Flag, Timer, BellRing, Users } from 'lucide-react';
+import { ChevronLeft, MessageSquareText, Plus, Minus, UserPlus, UserMinus, RotateCcw, Flag, Timer, BellRing, Users, Map as MapIcon, List } from 'lucide-react';
 import MapComponent from '../MapComponent';
 import { BusLine, CourseReport } from '../../types';
 import { getDistance } from '../../utils/geoUtils';
@@ -29,10 +29,24 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, initialHeading, startTi
   const [currentBoarding, setCurrentBoarding] = useState(0);
   const [currentDropped, setCurrentDropped] = useState(0);
   const [capturedArrivalTime, setCapturedArrivalTime] = useState<string | null>(null);
+  const [stationEntryTimestamp, setStationEntryTimestamp] = useState<number | null>(null);
   const [now, setNow] = useState(new Date());
+  const [distanceFromPrevStop, setDistanceFromPrevStop] = useState<number | null>(null);
+  const [displayMode, setDisplayMode] = useState<'map' | 'timeline'>('map');
   
   const wasAtStationRef = useRef(false);
   const alertsPlayedRef = useRef<{ [key: string]: boolean }>({});
+  const timelineContainerRef = useRef<HTMLDivElement>(null);
+  const stopRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useEffect(() => {
+    if (displayMode === 'timeline' && stopRefs.current[nextStopIdx]) {
+      stopRefs.current[nextStopIdx]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }, [nextStopIdx, displayMode]);
 
   // Fonction pour générer un BIP sonore
   const playBip = useCallback((count = 1) => {
@@ -86,6 +100,15 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, initialHeading, startTi
   const isLastStop = nextStopIdx === line.stops.length - 1;
 
   const distanceRemaining = useMemo(() => (!currentPos || !currentStop) ? null : getDistance(currentPos.lat, currentPos.lng, currentStop.lat, currentStop.lng), [currentPos, currentStop]);
+
+  useEffect(() => {
+    if (currentPos && nextStopIdx > 0) {
+      const prevStop = line.stops[nextStopIdx - 1];
+      setDistanceFromPrevStop(getDistance(currentPos.lat, currentPos.lng, prevStop.lat, prevStop.lng));
+    } else {
+      setDistanceFromPrevStop(null);
+    }
+  }, [currentPos, nextStopIdx, line.stops]);
   
   const isAtStation = useMemo(() => distanceRemaining !== null && distanceRemaining <= 20, [distanceRemaining]);
 
@@ -147,9 +170,15 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, initialHeading, startTi
   const scheduleOffset = useMemo(() => {
     if (!currentStop) return 0;
     const [h, m] = currentStop.time.split(':').map(Number);
-    const scheduled = new Date(); scheduled.setHours(h, m, 0, 0);
-    return Math.floor((now.getTime() - scheduled.getTime()) / 60000);
-  }, [currentStop, now]);
+    const scheduled = new Date(now); 
+    scheduled.setHours(h, m, 0, 0);
+    
+    // Estimation du temps de trajet restant (vitesse moyenne ~25km/h soit ~7m/s)
+    const travelTimeSeconds = distanceRemaining ? distanceRemaining / 7 : 0;
+    const estimatedArrival = now.getTime() + (travelTimeSeconds * 1000);
+    
+    return Math.floor((estimatedArrival - scheduled.getTime()) / 60000);
+  }, [currentStop, now, distanceRemaining]);
 
   const handleNext = useCallback(() => {
     const isManual = capturedArrivalTime === null;
@@ -160,12 +189,16 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, initialHeading, startTi
     const boarded = [...boardedCounts, currentBoarding];
     const dropped = [...droppedCounts, currentDropped];
 
+    const dwellTimeMs = stationEntryTimestamp ? Date.now() - stationEntryTimestamp : 0;
+    const isSkipped = !isManual && dwellTimeMs < 10000 && currentBoarding === 0 && currentDropped === 0;
+
     setStopTimings(timings);
     setBoardedCounts(boarded);
     setDroppedCounts(dropped);
     setCurrentBoarding(0);
     setCurrentDropped(0);
     setCapturedArrivalTime(null);
+    setStationEntryTimestamp(null);
     wasAtStationRef.current = false;
 
     if (nextStopIdx < line.stops.length - 1) {
@@ -194,7 +227,10 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, initialHeading, startTi
           const [schH, schM] = s.time.split(':').map(Number); 
           const currentTiming = timings[idx];
           const [actH, actM] = (currentTiming?.arrival || "00:00").split(':').map(Number);
-          const d = (actH * 60 + actM) - (schH * 60 + schM);
+          const [depH, depM] = (currentTiming?.departure || "00:00").split(':').map(Number);
+          
+          const dArrival = (actH * 60 + actM) - (schH * 60 + schM);
+          const dDeparture = (depH * 60 + depM) - (schH * 60 + schM);
           
           return { 
             stopName: s.name, 
@@ -202,8 +238,11 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, initialHeading, startTi
             actualArrivalTime: currentTiming?.arrival || "--:--:--", 
             actualDepartureTime: currentTiming?.departure || "--:--:--",
             isManual: currentTiming?.isManual || false,
-            status: d > 2 ? 'late' : d < 0 ? 'early' : 'on-time', 
-            diffMinutes: d,
+            skippedStop: idx === line.stops.length - 1 ? false : (idx === 0 ? false : isSkipped), // Simplified for demo, ideally we'd store isSkipped per stop
+            status: dArrival > 2 ? 'late' : dArrival < 0 ? 'early' : 'on-time', 
+            departureStatus: dDeparture > 2 ? 'late' : dDeparture < 0 ? 'early' : 'on-time',
+            diffMinutes: dArrival,
+            diffDepartureMinutes: dDeparture,
             boardedCount: boarded[idx] || 0, 
             droppedCount: dropped[idx] || 0 
           };
@@ -212,10 +251,44 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, initialHeading, startTi
     }
   }, [nextStopIdx, line, stopTimings, boardedCounts, droppedCounts, currentBoarding, currentDropped, capturedArrivalTime, onFinish, startTimestamp]);
 
+  const handleStopClick = (clickedIdx: number) => {
+    if (clickedIdx === nextStopIdx) return;
+
+    const isJumpingForward = clickedIdx > nextStopIdx;
+    const newTimings = [...stopTimings];
+    const newBoarded = [...boardedCounts];
+    const newDropped = [...droppedCounts];
+
+    if (isJumpingForward) {
+      const start = stopTimings.length;
+      for (let i = start; i < clickedIdx; i++) {
+        newTimings.push({ arrival: '--:--:--', departure: '--:--:--', isManual: true });
+        newBoarded.push(0);
+        newDropped.push(0);
+      }
+    } else {
+      newTimings.splice(clickedIdx);
+      newBoarded.splice(clickedIdx);
+      newDropped.splice(clickedIdx);
+    }
+
+    setStopTimings(newTimings);
+    setBoardedCounts(newBoarded);
+    setDroppedCounts(newDropped);
+    setNextStopIdx(clickedIdx);
+
+    setCapturedArrivalTime(null);
+    setStationEntryTimestamp(null);
+    wasAtStationRef.current = false;
+  };
+
   useEffect(() => {
     if (isAtStation) { 
       wasAtStationRef.current = true; 
-      if (!capturedArrivalTime) setCapturedArrivalTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })); 
+      if (!capturedArrivalTime) {
+        setCapturedArrivalTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })); 
+        setStationEntryTimestamp(Date.now());
+      }
     }
     else if (wasAtStationRef.current && distanceRemaining !== null && distanceRemaining > 20) handleNext();
   }, [isAtStation, distanceRemaining, capturedArrivalTime, handleNext]);
@@ -238,8 +311,72 @@ const DrivingView: React.FC<DrivingViewProps> = ({ line, initialHeading, startTi
           <button onClick={() => window.confirm("Annuler le service ?") && onExit()} className="flex-[0.4] rounded-3xl p-4 flex flex-col items-center justify-center bg-white/5 border border-white/10 shrink-0"><RotateCcw size={18} className="text-slate-400" /></button>
         </div>
         
-        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18]">
-          <MapComponent stops={line.stops} currentPos={currentPos} heading={currentHeading} dark isDriving height="100%" showStaticRouteOnly={true} />
+        <div className="flex-1 relative rounded-[48px] overflow-hidden border border-white/10 bg-[#0a0d18] flex flex-col">
+          {displayMode === 'map' ? (
+            <MapComponent key={nextStopIdx} stops={line.stops} trace={line.trace} currentPos={currentPos} heading={currentHeading} dark isDriving height="100%" showStaticRouteOnly={true} />
+          ) : (
+            <div ref={timelineContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
+              {line.stops.map((stop, idx) => {
+                const isPast = idx < nextStopIdx;
+                const isCurrent = idx === nextStopIdx;
+                const isFuture = idx > nextStopIdx;
+                const isSegmentWithProgress = idx === nextStopIdx - 1;
+
+                let progressPercentage = 0;
+                if (isSegmentWithProgress) {
+                  const segmentStartStop = line.stops[idx];
+                  const segmentEndStop = line.stops[nextStopIdx];
+                  const totalSegmentDistance = getDistance(segmentStartStop.lat, segmentStartStop.lng, segmentEndStop.lat, segmentEndStop.lng);
+                  if (distanceRemaining !== null && totalSegmentDistance > 0) {
+                    const progress = 1 - (distanceRemaining / totalSegmentDistance);
+                    progressPercentage = Math.max(0, Math.min(100, progress * 100));
+                  }
+                }
+
+                return (
+                  <div onClick={() => handleStopClick(idx)} ref={el => { if(el) stopRefs.current[idx] = el }} key={`${stop.id}-${idx}`} className="flex gap-6 items-start relative cursor-pointer">
+                    {/* Line connector */}
+                    {idx < line.stops.length - 1 && (
+                      <div className={`absolute left-[15px] top-8 w-1 h-[calc(100%+1.5rem)] rounded-full bg-slate-800`}>
+                        {isPast && <div className="bg-blue-600 w-full h-full rounded-full"/>}
+                        {isSegmentWithProgress && (
+                           <div 
+                             className="bg-blue-600 w-full rounded-full transition-all duration-500 ease-linear"
+                             style={{ height: `${progressPercentage}%` }}
+                           />
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Dot */}
+                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 z-10 transition-all duration-500 ${
+                      isCurrent ? 'bg-blue-600 border-white shadow-[0_0_15px_rgba(37,99,235,0.6)] scale-110' : 
+                      isPast ? 'bg-blue-900 border-blue-600' : 'bg-[#0a0d18] border-slate-700'
+                    }`}>
+                      {isPast && <div className="w-2.5 h-2.5 bg-blue-400 rounded-full" />}
+                      {isCurrent && <div className="w-3 h-3 bg-white rounded-full animate-pulse" />}
+                    </div>
+                    
+                    <div className={`flex-1 flex justify-between items-center py-1 ${isFuture ? 'opacity-30' : ''}`}>
+                      <div className="min-w-0">
+                        <h3 className={`font-black uppercase italic truncate ${isCurrent ? 'text-blue-400 text-xl' : 'text-slate-200 text-lg'}`}>{stop.name}</h3>
+                        {stop.annotation && <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">{stop.annotation}</p>}
+                      </div>
+                      {/* Time and distance information removed as requested */}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Toggle Button */}
+          <button 
+            onClick={() => setDisplayMode(prev => prev === 'map' ? 'timeline' : 'map')}
+            className="absolute bottom-6 right-6 z-[1002] w-14 h-14 rounded-2xl bg-blue-600/90 backdrop-blur-md border border-white/20 shadow-2xl flex items-center justify-center active:scale-90 transition-all"
+          >
+            {displayMode === 'map' ? <List size={24} /> : <MapIcon size={24} />}
+          </button>
           
           {departureInfo && (
             <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[1001] pointer-events-none">

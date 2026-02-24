@@ -83,7 +83,7 @@ const TimeCalculator: React.FC<TimeCalculatorProps> = ({ isOpen, onClose }) => {
       
       const dayLabel = resObj.days > 0 ? ` (+${resObj.days}j)` : resObj.days < 0 ? ` (${resObj.days}j)` : '';
       setHistory(prev => [input + ' = ' + resObj.time + dayLabel, ...prev].slice(0, 5));
-    } catch (e) {
+    } catch (_e) {
       setResult(null);
     }
   };

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { X, Users, UserPlus, UserMinus, RotateCcw, Settings2 } from 'lucide-react';
 
 interface PassengerCounterProps {

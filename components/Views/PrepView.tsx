@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Activity, Clock, PlayCircle, Info, Locate, Hourglass, MapPin, ChevronRight, Diamond } from 'lucide-react';
+import { Activity, Clock, PlayCircle, Info, Hourglass, Diamond } from 'lucide-react';
 import MapComponent from '../MapComponent';
 import { BusLine } from '../../types';
 import { getDistance } from '../../utils/geoUtils';

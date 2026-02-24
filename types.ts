@@ -17,6 +17,7 @@ export interface BusLine {
   stops: Stop[];
   type?: LineType;
   info?: string;
+  trace?: { lat: number; lng: number }[];
 }
 
 export interface StopReport {
@@ -25,8 +26,11 @@ export interface StopReport {
   actualArrivalTime: string;
   actualDepartureTime?: string;
   status: 'early' | 'on-time' | 'late' | 'not-served';
+  departureStatus?: 'early' | 'on-time' | 'late';
   isManual?: boolean; // Indique si l'arrêt a été forcé manuellement
+  skippedStop?: boolean; // Indique si le véhicule est passé sans s'arrêter
   diffMinutes: number; // Différence par rapport à l'arrivée prévue
+  diffDepartureMinutes?: number; // Différence par rapport au départ prévu
   boardedCount: number;
   droppedCount: number;
 }

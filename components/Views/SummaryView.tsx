@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { CheckCircle2, Home, UserPlus, UserMinus, FileText, Clock, TrendingUp, TrendingDown, Hourglass, ShieldCheck, CircleX, MapPin, Hand, Users, Timer } from 'lucide-react';
+import { CheckCircle2, Home, UserPlus, UserMinus, FileText, Clock, TrendingUp, TrendingDown, ShieldCheck, CircleX, MapPin, Hand, Users, Timer, FastForward } from 'lucide-react';
 import { CourseReport } from '../../types';
 
 interface SummaryViewProps {
@@ -199,12 +199,26 @@ const SummaryView: React.FC<SummaryViewProps> = ({ report, onClose, onExportPDF 
                                 <span className="text-[8px] font-black text-amber-500 uppercase tracking-tighter">Saisie Manuelle</span>
                               </div>
                             )}
+                            {stop.skippedStop && (
+                              <div className="flex items-center gap-1 bg-indigo-500/10 border border-indigo-500/40 px-2 py-0.5 rounded-lg">
+                                <FastForward size={10} className="text-indigo-400" />
+                                <span className="text-[8px] font-black text-indigo-400 uppercase tracking-tighter">Passage sans arrêt</span>
+                              </div>
+                            )}
                             <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border ${stop.status === 'late' ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : stop.status === 'early' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'}`}>
                               {stop.status === 'late' ? <TrendingUp size={10} /> : stop.status === 'early' ? <TrendingDown size={10} /> : <CheckCircle2 size={10} />}
                               <span className="text-[8px] font-black uppercase tracking-tighter">
-                                {stop.status === 'on-time' ? "À L'HEURE" : stop.status === 'late' ? `RETARD +${stop.diffMinutes}m` : `AVANCE ${stop.diffMinutes}m`}
+                                ARR: {stop.status === 'on-time' ? "H" : stop.status === 'late' ? `+${stop.diffMinutes}m` : `${stop.diffMinutes}m`}
                               </span>
                             </div>
+                            {stop.departureStatus && (
+                              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border ${stop.departureStatus === 'late' ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : stop.departureStatus === 'early' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'}`}>
+                                {stop.departureStatus === 'late' ? <TrendingUp size={10} /> : stop.departureStatus === 'early' ? <TrendingDown size={10} /> : <CheckCircle2 size={10} />}
+                                <span className="text-[8px] font-black uppercase tracking-tighter">
+                                  DEP: {stop.departureStatus === 'on-time' ? "H" : stop.departureStatus === 'late' ? `+${stop.diffDepartureMinutes}m` : `${stop.diffDepartureMinutes}m`}
+                                </span>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>

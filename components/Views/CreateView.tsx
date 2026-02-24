@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ArrowLeft, PlusCircle, Clock, ChevronUp, ChevronDown, MessageSquareText, Trash2, Crosshair, Save, Info, Map as MapIcon } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Clock, ChevronUp, ChevronDown, MessageSquareText, Trash2, Save, Info, Map as MapIcon } from 'lucide-react';
 import MapComponent from '../MapComponent';
 import { BusLine, Stop, LineType } from '../../types';
 
@@ -53,6 +53,18 @@ const CreateView: React.FC<CreateViewProps> = ({ initialLine, userLocation, onCa
     setFormData(prev => ({ ...prev, stops: [...(prev.stops || []), newStop] }));
   };
 
+  const handleStopMove = (idx: number, lat: number, lng: number) => {
+    setFormData(prev => {
+      const stops = [...(prev.stops || [])];
+      stops[idx] = { 
+        ...stops[idx], 
+        lat: parseFloat(lat.toFixed(6)), 
+        lng: parseFloat(lng.toFixed(6)) 
+      };
+      return { ...prev, stops };
+    });
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50 print:hidden">
       {/* Header */}
@@ -80,6 +92,7 @@ const CreateView: React.FC<CreateViewProps> = ({ initialLine, userLocation, onCa
               currentPos={userLocation} 
               height="100%" 
               onMapClick={handleMapClick} 
+              onStopMove={handleStopMove}
             />
           </div>
 
@@ -210,6 +223,7 @@ const CreateView: React.FC<CreateViewProps> = ({ initialLine, userLocation, onCa
             currentPos={userLocation} 
             height="100%" 
             onMapClick={handleMapClick} 
+            onStopMove={handleStopMove}
            />
         </div>
       </div>

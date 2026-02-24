@@ -28,15 +28,15 @@ const Header: React.FC<HeaderProps> = ({ screenType, onOpenCalculator, onOpenPas
   }, []);
 
   return (
-    <div className="bg-blue-600 text-white px-6 py-4 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0 print:hidden">
-      <div className="flex items-center gap-3">
+    <div className="bg-blue-600 text-white px-6 py-4 flex items-center justify-between shadow-lg sticky top-0 z-[100] safe-top shrink-0 print:hidden min-h-[80px]">
+      <div className="flex items-center gap-3 h-full">
         <LogoEmblem size={20} />
-        <div className="flex flex-col">
-          <h1 className="text-xl font-black uppercase italic tracking-tighter leading-none">GEOligne</h1>
-          <span className="text-[7px] font-bold opacity-80 uppercase tracking-widest mt-0.5">Votre réseau, bien orienté by Mrico73</span>
+        <div className="flex flex-col justify-center">
+          <h1 className="text-xl font-black uppercase italic tracking-tighter leading-tight">GEOligne</h1>
+          <span className="text-[7px] font-bold opacity-80 uppercase tracking-widest">Votre réseau, bien orienté by Mrico73</span>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 h-full">
         <button 
           onClick={onOpenPassengerCounter}
           className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl border border-white/10 transition-all active:scale-90 flex items-center justify-center shadow-inner"
@@ -51,7 +51,7 @@ const Header: React.FC<HeaderProps> = ({ screenType, onOpenCalculator, onOpenPas
         >
           <Calculator size={18} />
         </button>
-        <div className="hidden sm:flex items-center gap-2 text-[10px] font-black bg-black/20 px-3 py-1.5 rounded-xl border border-white/10 uppercase italic tracking-widest">
+        <div className="hidden sm:flex items-center gap-2 text-[10px] font-black bg-black/20 px-3 py-2 rounded-xl border border-white/10 uppercase italic tracking-widest">
           {screenType === 'Mobile' ? <Smartphone size={12} /> : screenType === 'Tablette' ? <Tablet size={12} /> : <Monitor size={12} />}
           {screenType}
         </div>

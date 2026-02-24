@@ -73,8 +73,8 @@ const GeoManuelView: React.FC<GeoManuelViewProps> = ({ onExit, onFinish }) => {
     const endTime = new Date();
     const diff = Math.floor((endTime.getTime() - startTime.getTime()) / 60000);
     
-    let finalStops = [...stops];
-    let finalTotalBoarded = boardedTotal;
+    const finalStops = [...stops];
+    const finalTotalBoarded = boardedTotal;
     let finalTotalDropped = droppedTotal;
 
     // Logique d'auto-remplissage du terminus

@@ -1,15 +1,18 @@
 
 import React, { useRef, useEffect, useState, useMemo, memo } from 'react';
 import { WifiOff, Navigation } from 'lucide-react';
+import L from 'leaflet';
 import { Stop } from '../types';
 
 interface MapComponentProps {
   stops: Stop[];
+  trace?: { lat: number; lng: number }[];
   currentPos?: { lat: number; lng: number } | null;
   heading?: number | null;
   focusLocation?: { lat: number; lng: number } | null;
   height?: string;
   onMapClick?: (lat: number, lng: number) => void;
+  onStopMove?: (idx: number, lat: number, lng: number) => void;
   onRouteInfo?: (info: { distance: number; duration: number }) => void;
   dark?: boolean;
   satellite?: boolean;
@@ -22,11 +25,13 @@ const routeCache = new Map<string, any>();
 
 const MapComponent: React.FC<MapComponentProps> = memo(({ 
   stops, 
+  trace,
   currentPos, 
   heading = 0,
   focusLocation,
   height = "200px", 
   onMapClick,
+  onStopMove,
   onRouteInfo,
   dark = false, 
   satellite = false,
@@ -76,9 +81,6 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
 
   // Initialisation stable de la carte
   useEffect(() => {
-    const L = (window as any).L;
-    if (!L) { setLoadError(true); return; }
-    
     const mapInstance = L.map(containerId, { 
       zoomControl: false, 
       attributionControl: false,
@@ -111,7 +113,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
     const handleBeforePrint = () => {
       if (mapInstance && stops.length > 0) {
         mapInstance.invalidateSize();
-        const boundsPoints = stops.map(s => [s.lat, s.lng]);
+        const boundsPoints = stops.map(s => [s.lat, s.lng] as [number, number]);
         const bounds = L.latLngBounds(boundsPoints);
         mapInstance.fitBounds(bounds, { padding: [40, 40], animate: false });
       }
@@ -134,32 +136,46 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
 
   useEffect(() => {
     const map = mapRef.current;
-    const L = (window as any).L;
-    if (!map || !L) return;
+    if (!map) return;
     
     const updateMapUI = async () => {
       markersLayerRef.current.clearLayers();
       routeLayerRef.current.clearLayers();
       
-      const routePoints = (currentPos && !showStaticRouteOnly) ? [{lat: currentPos.lat, lng: currentPos.lng}, ...stops] : stops;
-
-      if (!hideRoute && routePoints.length >= 2) {
-        const routeData = await fetchRoute(routePoints);
-        if (routeData) {
-          L.geoJSON(routeData.geometry, { 
+      if (!hideRoute) {
+        if (trace && trace.length > 0) {
+          const geometry = { type: 'LineString' as const, coordinates: trace.map(p => [p.lng, p.lat]) };
+          L.geoJSON(geometry, { 
             style: { 
               color: satellite ? '#facc15' : (dark ? '#3b82f6' : '#2563eb'), 
               weight: 6, 
               opacity: 0.8 
             } 
           }).addTo(routeLayerRef.current);
-          if (onRouteInfo) {
-            onRouteInfo({ distance: routeData.distance, duration: routeData.duration });
+        } else {
+          const routePoints = (currentPos && !showStaticRouteOnly) ? [{lat: currentPos.lat, lng: currentPos.lng}, ...stops] : stops;
+          if (routePoints.length >= 2) {
+            const routeData = await fetchRoute(routePoints);
+            if (routeData) {
+              L.geoJSON(routeData.geometry, { 
+                style: { 
+                  color: satellite ? '#facc15' : (dark ? '#3b82f6' : '#2563eb'), 
+                  weight: 6, 
+                  opacity: 0.8 
+                } 
+              }).addTo(routeLayerRef.current);
+              if (onRouteInfo) {
+                onRouteInfo({ distance: routeData.distance, duration: routeData.duration });
+              }
+            }
           }
         }
-      } else if (hideRoute && onRouteInfo && routePoints.length >= 2) {
-         const dist = getSimpleDistance(routePoints[0].lat, routePoints[0].lng, routePoints[1].lat, routePoints[1].lng);
-         onRouteInfo({ distance: dist, duration: dist / 11 }); 
+      } else if (onRouteInfo) {
+        const routePoints = (currentPos && !showStaticRouteOnly) ? [{lat: currentPos.lat, lng: currentPos.lng}, ...stops] : stops;
+        if (routePoints.length >= 2) {
+          const dist = getSimpleDistance(routePoints[0].lat, routePoints[0].lng, routePoints[1].lat, routePoints[1].lng);
+          onRouteInfo({ distance: dist, duration: dist / 11 });
+        }
       }
       
       stops.forEach((stop, idx) => {
@@ -170,7 +186,17 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
           html: `<div style="background:${isFirst ? '#10b981' : isLast ? '#ef4444' : '#fff'}; width:26px; height:26px; border-radius:50%; border:3px solid ${isFirst || isLast ? '#fff' : '#2563eb'}; display:flex; align-items:center; justify-content:center; color:${isFirst || isLast ? '#fff' : '#2563eb'}; font-size:12px; font-weight:900; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${idx + 1}</div>`,
           iconSize: [26, 26], iconAnchor: [13, 13]
         });
-        const marker = L.marker([stop.lat, stop.lng], { icon }).addTo(markersLayerRef.current);
+        const marker = L.marker([stop.lat, stop.lng], { 
+          icon,
+          draggable: !!onStopMove && !isDriving
+        }).addTo(markersLayerRef.current);
+        
+        if (onStopMove) {
+          marker.on('dragend', (e: any) => {
+            const { lat, lng } = e.target.getLatLng();
+            onStopMove(idx, lat, lng);
+          });
+        }
         
         if (!isDriving) {
           marker.bindTooltip(stop.name, {
@@ -184,7 +210,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
 
       // BUG FIX: Ne pas recadrer automatiquement si on est en train de cliquer sur la carte (édition/création)
       if (!isDriving && stops.length > 0 && !focusLocation && !onMapClick) {
-        const boundsPoints = stops.map(s => [s.lat, s.lng]);
+        const boundsPoints = stops.map(s => [s.lat, s.lng] as [number, number]);
         const bounds = L.latLngBounds(boundsPoints);
         
         setTimeout(() => {
@@ -199,7 +225,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
       }
     };
     updateMapUI();
-  }, [stops, currentPos, dark, satellite, isDriving, hideRoute, showStaticRouteOnly, onMapClick]);
+  }, [stops, trace, currentPos, dark, satellite, isDriving, hideRoute, showStaticRouteOnly, onMapClick]);
 
   const getSimpleDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371e3;
@@ -213,8 +239,7 @@ const MapComponent: React.FC<MapComponentProps> = memo(({
 
   useEffect(() => {
     const map = mapRef.current;
-    const L = (window as any).L;
-    if (!map || !L || !currentPos) return;
+    if (!map || !currentPos) return;
     
     const navIconHtml = `
       <div style="transform: rotate(${heading || 0}deg); transition: transform 0.2s ease-out; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));">

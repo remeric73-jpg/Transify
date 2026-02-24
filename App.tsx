@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AppView, BusLine, Stop, CourseReport, ManualReport, LineType } from './types';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useBusLines } from './hooks/useBusLines';
@@ -100,12 +100,24 @@ const App: React.FC = () => {
             annotation: stopEl.getElementsByTagName("annotation")[0]?.textContent || "",
           });
         }
+        
+        const trace: { lat: number, lng: number }[] = [];
+        const traceElements = lineEl.getElementsByTagName("trace_point");
+        for (let j = 0; j < traceElements.length; j++) {
+          const tpEl = traceElements[j];
+          trace.push({
+            lat: parseFloat(tpEl.getElementsByTagName("lat")[0]?.textContent || "0"),
+            lng: parseFloat(tpEl.getElementsByTagName("lng")[0]?.textContent || "0"),
+          });
+        }
+
         imported.push({
           id: lineEl.getAttribute("id") || Math.random().toString(36).substr(2, 9),
           number: lineEl.getElementsByTagName("number")[0]?.textContent || "??",
           name: lineEl.getElementsByTagName("name")[0]?.textContent || "Import",
           info: lineEl.getElementsByTagName("info")[0]?.textContent || "",
           stops,
+          trace: trace.length > 0 ? trace : undefined,
           type: (lineEl.getElementsByTagName("type")[0]?.textContent as LineType) || 'Urbain'
         });
       }
@@ -121,7 +133,15 @@ const App: React.FC = () => {
       l.stops.forEach(s => {
         xml += `<stop><name>${s.name}</name><time>${s.time}</time><lat>${s.lat}</lat><lng>${s.lng}</lng><annotation>${s.annotation || ''}</annotation></stop>`;
       });
-      xml += `</stops></line>`;
+      xml += `</stops>`;
+      if (l.trace) {
+        xml += `<trace>`;
+        l.trace.forEach(p => {
+          xml += `<trace_point><lat>${p.lat}</lat><lng>${p.lng}</lng></trace_point>`;
+        });
+        xml += `</trace>`;
+      }
+      xml += `</line>`;
     });
     xml += '</geoligne>';
     const blob = new Blob([xml], { type: 'application/xml' });
@@ -182,6 +202,7 @@ const App: React.FC = () => {
         lat: ms.lat,
         lng: ms.lng
       })),
+      trace: lastManualReport.trace,
       type: 'Urbain',
       info: 'Traçage issu d\'un relevé manuel GeoManuel.'
     });
@@ -261,11 +282,11 @@ const App: React.FC = () => {
           />
         )}
 
-        {view === AppView.DRIVING && selectedLine && (
+        {view === AppView.DRIVING && selectedLine && courseStartTimestamp && (
           <DrivingView 
             line={selectedLine} 
             initialHeading={userHeading}
-            startTimestamp={courseStartTimestamp || Date.now()}
+            startTimestamp={courseStartTimestamp}
             onExit={() => {
               setCourseStartTimestamp(null);
               setView(AppView.DETAIL);

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { FileUp, FileDown, AlertTriangle, MapPin, Pencil, Trash2, Navigation2, PlusCircle, School, Building2, Map as MapPath, Milestone, Bus, BusFront, Info, History, ChevronRight, Clock, Map as MapIcon } from 'lucide-react';
+import { FileUp, FileDown, AlertTriangle, MapPin, Pencil, Trash2, Navigation2, PlusCircle, Bus, BusFront, Info, History, ChevronRight, Clock, Map as MapIcon } from 'lucide-react';
 import { BusLine, LineType, CourseReport, ManualReport } from '../../types';
 
 interface HomeViewProps {
@@ -178,7 +178,11 @@ const HomeView: React.FC<HomeViewProps> = ({
                       onClick={(e) => { 
                         e.stopPropagation(); 
                         if(item.id) {
-                          item.type === 'course' ? onDeleteReport(item.id) : onDeleteManualReport(item.id);
+                          if (item.type === 'course') {
+                            onDeleteReport(item.id)
+                          } else {
+                            onDeleteManualReport(item.id)
+                          }
                         }
                       }} 
                       className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 hover:text-rose-500"

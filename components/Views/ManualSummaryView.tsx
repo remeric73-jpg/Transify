@@ -12,7 +12,7 @@ interface ManualSummaryViewProps {
 }
 
 const ManualSummaryView: React.FC<ManualSummaryViewProps> = ({ report, onClose, onConvert, onExportPDF }) => {
-  const stopsAsStops: Stop[] = report.stops.map((s, i) => ({ id: Math.random().toString(), name: `Arrêt ${i + 1}`, time: s.time, lat: s.lat, lng: s.lng }));
+    const stopsAsStops: Stop[] = report.stops.map((s, i) => ({ id: `manual-stop-${i}`, name: `Arrêt ${i + 1}`, time: s.time, lat: s.lat, lng: s.lng }));
   const printDate = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   return (
